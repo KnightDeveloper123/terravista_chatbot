@@ -138,7 +138,7 @@ const Home: React.FC = () => {
                 const newTitleId = await sendNewChat(message);
                 if (newTitleId) {
                     currentTitleId = newTitleId;
-                    navigate(`/home/${userId}/${newTitleId}`);
+                    navigate(`/home/${userId}/${currentTitleId}`);
                 }
             } else {
                 await sendResponse(value, "user");
@@ -158,6 +158,7 @@ const Home: React.FC = () => {
                 };
                 setAllChats((prev) => [...prev, botMessage]);
                 await sendResponse(botMessage.message, "bot", currentTitleId);
+                await getAllChats(currentTitleId);
             }
         } catch (err) {
             console.error("Error handling chat:", err);
