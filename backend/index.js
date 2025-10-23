@@ -22,7 +22,15 @@ const app = express();
 //     allowedHeaders: ["Content-Type", "Authorization"],
 //     credentials: true
 // }));
-app.use(cors());
+// app.use(cors());
+
+app.use(cors({
+    origin: "http://localhost:5173", // 👈 your frontend URL
+    credentials: true,               // 👈 allow cookies / auth headers
+    methods: ["GET", "POST", "PUT", "DELETE"],
+}));
+
+app.use(express.json());
 
 app.use("/documents", express.static(path.join(__dirname, "documents/")));
 app.use("/products", express.static(path.join(__dirname, "products/")));
@@ -49,7 +57,7 @@ app.use('/employee', require("./routes/admin/employee"))
 app.use('/contact', require("./routes/admin/contact_list"))
 app.use('/bots', require("./routes/admin/bots"))
 app.use('/template', require("./routes/admin/template"))
-app.use('/',require('./routes/admin/webhook'))
+app.use('/', require('./routes/admin/webhook'))
 
 app.use('/user', require("./routes/users/user"))
 app.use('/community', require("./routes/users/community"))
