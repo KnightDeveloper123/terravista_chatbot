@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { middleware } = require('../../middleware/middleware')
 const connection = require('../../database/db');
+const executeQuery = require('../../utils/executeQuery');
 
 router.post("/addChat", middleware, (req, res) => {
     const { message, sender, title_id } = req.body;
@@ -96,7 +97,35 @@ router.get("/getAllChats", (req, res) => {
 
 })
 
-router.post("/likeChat", middleware, (req, res) => {
+router.post("/reaction", middleware, async (req, res) => {
+    try {
+        const { chat_id, reaction } = req.body;
+
+        if (!chat_id || (reaction !== 0 && reaction !== 1)) {
+            return res.status(400).json({ error: "Invalid input. Reaction must be 0 or 1." });
+        }
+
+        const [chatDetail] = await executeQuery("SELECT * FROM chats WHERE id = ?", [chat_id]);
+
+        if (!chatDetail) {
+            return res.status(404).json({ error: "Chat message not found." });
+        }
+
+        // Check if already reacted
+        if (chatDetail.reaction !== null) {
+            return res.status(400).json({ error: "User has already reacted to this chat." });
+        }
+
+        await executeQuery("UPDATE chats SET reaction = ? WHERE id = ?", [reaction, chat_id]);
+        return res.json({ success: true, message: "Reaction saved successfully." });
+    } catch (err) {
+        console.error("Error in /reaction:", err);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
+router.post("/feedback", middleware, (req, res) => {
 
     const { chat_id, user_id, feedback } = req.body;
     console.log(chat_id, user_id, feedback);

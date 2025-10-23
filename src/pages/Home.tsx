@@ -10,7 +10,8 @@ import logo from "../assets/logo.png";
 import { useNavigate, useParams } from 'react-router';
 import useFetch from '@/hooks/useFetch';
 import { showAlert } from '@/utils/helpers';
-import { MdDelete } from 'react-icons/md';
+import { MdDelete, MdContentCopy, MdThumbUp, MdThumbDown, MdFeedback, MdThumbDownOffAlt, MdThumbUpOffAlt } from 'react-icons/md';
+import { IoIosCopy } from 'react-icons/io';
 
 
 type Sender = "user" | "bot";
@@ -34,6 +35,7 @@ interface ChatMessage {
     sender: Sender;
     message: string;
     created_at?: string;
+    reaction?: 0 | 1 | null;
 }
 interface FeedbackMap {
     [chatId: string]: 0 | 1 | null;
@@ -51,14 +53,14 @@ const Home: React.FC = () => {
 
     const bottomRef = useRef<HTMLDivElement>(null);
 
-    const { request } = useFetch();
+    const { loading, request } = useFetch();
 
     const [value, setValue] = useState<string>("");
     const [allTitles, setAllTitles] = useState<ChatTitle[]>([]);
     const [allChats, setAllChats] = useState<ChatMessage[]>([]);
-    const [loading, setLoading] = useState<boolean>(false);
     const [reportData, setReportData] = useState<string>("");
     const [feedbackMap, setFeedbackMap] = useState<FeedbackMap>({});
+    const [copiedChatId, setCopiedChatId] = useState<number | null>(null);
 
     /** Scroll to bottom when chats update */
     useEffect(() => {
@@ -129,8 +131,6 @@ const Home: React.FC = () => {
         const updatedChats = [...allChats, message];
         setAllChats(updatedChats);
         setValue("");
-        setLoading(true);
-
         try {
             let currentTitleId = titleId;
 
@@ -163,8 +163,6 @@ const Home: React.FC = () => {
             console.error("Error handling chat:", err);
             setAllChats((prev) => [...prev, { message: "I am not able to find", sender: "bot", title_id: Number(titleId) }]);
             showAlert("Error", (err as Error).message || "Something went wrong", "error");
-        } finally {
-            setLoading(false);
         }
     }, [allChats, request, sendNewChat, sendResponse, titleId, userId, value, navigate]);
 
@@ -247,6 +245,32 @@ const Home: React.FC = () => {
         }
     }
 
+    const handleChatReaction = async (chatId?: number, reaction?: number) => {
+        try {
+            const res = await request({
+                url: `/chatbot/reaction`,
+                method: "POST",
+                body: { chat_id: chatId, user_id: userId, reaction },
+            });
+
+            if (res.error) {
+                return showAlert("Error", res.error || "Failed to delete title", "error");
+            }
+
+            getAllChats(titleId);
+        } catch (err) {
+            console.error("Error deleting title:", err);
+            showAlert("Error", (err as Error).message || "Failed to delete title", "error");
+        }
+    }
+
+    const handleCopy = (message: string, chatId: number) => {
+        navigator.clipboard.writeText(message); // copy to clipboard
+        setCopiedChatId(chatId);               // mark as copied
+        setTimeout(() => setCopiedChatId(null), 1500); // reset after 1.5s
+    };
+
+
     return (
         <Flex h={'100vh'} bg={'#F2F2F2'} p={4} gap={2}>
             <Box w={'400px'} h={'100%'}>
@@ -297,21 +321,16 @@ const Home: React.FC = () => {
                             </IconButton>
                         </Flex>
                     </Flex> : <Flex p={4} flexDir={'column'} w={'100%'}>
-
                         <Flex flex={1} gap={2} h={'100%'} overflow={'auto'} flexDir={'column'} className="scroll-container">
-                            {allChats.map((chat, index) => (
-                                <Box key={index} alignSelf={chat.sender === "user" ? "flex-end" : "flex-start"} bg={chat.sender === "user" ? "#fff" : "#005392"} color={chat.sender === "user" ? "#000" : "white"} borderRadius="20px" p="10px" maxW="60%" my="8px" boxShadow="md">
-                                    {chat.sender === "bot" && index === allChats.length - 1 ? (
-                                        <Box>
-                                            {chat.message
-                                                .split('\n\n')
-                                                .filter(line => line.trim() !== '')
-                                                .map((line, idx) => {
-                                                    const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
-
-                                                    const parsedLine = withIndent
-                                                        .split(/(\*\*.*?\*\*|\*.*?\*)/)
-                                                        .map((part, i) => {
+                            {allChats.map((chat, index) => {
+                                return (
+                                    <Flex key={index} flexDir={'column'}>
+                                        <Box alignSelf={chat.sender === "user" ? "flex-end" : "flex-start"} bg={chat.sender === "user" ? "#fff" : "#005392"} color={chat.sender === "user" ? "#000" : "white"} borderRadius="20px" p="10px" maxW="60%" my="8px" boxShadow="md">
+                                            {chat.sender === "bot" && index === allChats.length - 1 ? (
+                                                <Box>
+                                                    {chat.message.split('\n\n').filter(line => line.trim() !== '').map((line, idx) => {
+                                                        const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
+                                                        const parsedLine = withIndent.split(/(\*\*.*?\*\*|\*.*?\*)/).map((part, i) => {
                                                             if (part.startsWith('**') && part.endsWith('**')) {
                                                                 return (
                                                                     <Text as="span" fontWeight="bold" key={i}>
@@ -329,52 +348,47 @@ const Home: React.FC = () => {
                                                             }
                                                         });
 
-                                                    return (
-                                                        <div
-                                                            key={idx}
-                                                        // initial={{ opacity: 0, y: 8 }}
-                                                        // animate={{ opacity: 1, y: 0 }}
-                                                        // transition={{ duration: 1.4 }}
-                                                        >
-                                                            <Text mt={idx !== 0 ? 3 : 0}>{parsedLine}</Text>
-                                                        </div>
-                                                    );
-                                                })}
-                                        </Box>
+                                                        return (
+                                                            <Flex key={idx} flexDir={'column'}>
+                                                                <Text mt={idx !== 0 ? 3 : 0}>{parsedLine}</Text>
+                                                            </Flex>
+                                                        );
+                                                    })}
+                                                </Box>
 
-                                    ) : (
-                                        <Box>
-                                            <Box>
-                                                {chat?.message?.split('\n\n').filter(line => line.trim() !== '').map((line, idx) => {
-                                                    const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0'); // 4 non-breaking spaces
+                                            ) : (
+                                                <Box>
+                                                    <Box>
+                                                        {chat?.message?.split('\n\n').filter(line => line.trim() !== '').map((line, idx) => {
+                                                            const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0'); // 4 non-breaking spaces
 
-                                                    const parsedLine = withIndent.split(/(\*\*.*?\*\*|\*.*?\*)/).map((part, i) => {
-                                                        if (part.startsWith('**') && part.endsWith('**')) {
+                                                            const parsedLine = withIndent.split(/(\*\*.*?\*\*|\*.*?\*)/).map((part, i) => {
+                                                                if (part.startsWith('**') && part.endsWith('**')) {
+                                                                    return (
+                                                                        <Text as="span" fontWeight="bold" key={i}>
+                                                                            {part.slice(2, -2)}
+                                                                        </Text>
+                                                                    );
+                                                                } else if (part.startsWith('*') && part.endsWith('*')) {
+                                                                    return (
+                                                                        <Text as="span" fontStyle="italic" key={i}>
+                                                                            {part.slice(1, -1)}
+                                                                        </Text>
+                                                                    );
+                                                                } else {
+                                                                    return <Text as="span" key={i}>{part}</Text>;
+                                                                }
+                                                            });
+
                                                             return (
-                                                                <Text as="span" fontWeight="bold" key={i}>
-                                                                    {part.slice(2, -2)}
+                                                                <Text key={idx} mt={idx !== 0 ? 3 : 0}>
+                                                                    {parsedLine}
                                                                 </Text>
                                                             );
-                                                        } else if (part.startsWith('*') && part.endsWith('*')) {
-                                                            return (
-                                                                <Text as="span" fontStyle="italic" key={i}>
-                                                                    {part.slice(1, -1)}
-                                                                </Text>
-                                                            );
-                                                        } else {
-                                                            return <Text as="span" key={i}>{part}</Text>;
-                                                        }
-                                                    });
+                                                        })}
+                                                    </Box>
 
-                                                    return (
-                                                        <Text key={idx} mt={idx !== 0 ? 3 : 0}>
-                                                            {parsedLine}
-                                                        </Text>
-                                                    );
-                                                })}
-                                            </Box>
-
-                                            {/* <HStack spacing={4}>
+                                                    {/* <HStack spacing={4}>
                                                                     <IconButton
                                                                         icon={<FaThumbsUp />}
                                                                         colorScheme={liked ? 'blue' : 'gray'}
@@ -394,10 +408,35 @@ const Home: React.FC = () => {
                                                                     <Text>{disliked ? 'Disliked' : ''}</Text>
                                                                 </HStack> */}
 
+                                                </Box>
+                                            )}
                                         </Box>
-                                    )}
-                                </Box>
-                            ))}
+                                        {chat.sender === "bot" && <Flex gap={2} alignItems={'center'}>
+                                            <IconButton variant={'ghost'}
+                                                onClick={() => chat.id && handleCopy(chat.message, chat.id)}
+                                                size={'2xs'}
+                                            >
+                                                {copiedChatId === chat.id ? <IoIosCopy /> : <MdContentCopy />}
+                                            </IconButton>
+
+                                            {chat.reaction === null ? <>
+                                                <IconButton variant={'ghost'} size={'2xs'} disabled={loading} onClick={() => handleChatReaction(chat.id, 0)}>
+                                                    <MdThumbDownOffAlt />
+                                                </IconButton>
+                                                <IconButton variant={'ghost'} size={'2xs'} disabled={loading} onClick={() => handleChatReaction(chat.id, 1)}>
+                                                    <MdThumbUpOffAlt />
+                                                </IconButton>
+                                            </> : <IconButton variant={'ghost'} size={'2xs'}>
+                                                {chat.reaction === 0 ? <MdThumbDown /> : <MdThumbUp />}
+                                            </IconButton>}
+
+                                            <IconButton variant={'ghost'} size={'2xs'}>
+                                                <MdFeedback />
+                                            </IconButton>
+                                        </Flex>}
+                                    </Flex>
+                                )
+                            })}
                         </Flex>
 
                         <Flex align="center" gap={2} mt={4} w={'100%'}>
@@ -428,8 +467,8 @@ const Home: React.FC = () => {
                         </Flex>
                     </Flex>}
                 </Flex>
-            </Box>
-        </Flex>
+            </Box >
+        </Flex >
     );
 };
 
