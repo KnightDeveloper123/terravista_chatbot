@@ -7,10 +7,10 @@ import AppProviders from './context/AppProvider'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <Provider>
-      <AppProviders>
+    <AppProviders>
+      <Provider>
         <App />
-      </AppProviders>
-    </Provider>
+      </Provider>
+    </AppProviders>
   </StrictMode>,
 )

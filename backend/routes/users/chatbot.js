@@ -5,7 +5,7 @@ const connection = require('../../database/db');
 
 router.post("/addChat", middleware, (req, res) => {
     const { message, sender, title_id } = req.body;
-    // console.log(message,"addChat");
+    console.log(message, "addChat", title_id);
 
     const query = 'INSERT INTO chats (title_id,message,sender) VALUES (?,?,?)'
     const values = [title_id, message, sender]
@@ -22,7 +22,7 @@ router.post("/addChat", middleware, (req, res) => {
 router.post("/newChat", middleware, async (req, res) => {
 
     const { chats, user_id } = req.body;
-    // console.log(chats.chats,"chats");
+    console.log(chats, "chats");
 
 
     const message = `New Chat ${new Date().toLocaleDateString("en-GB", { day: 'numeric', month: 'long', year: 'numeric' })}`;
@@ -39,8 +39,7 @@ router.post("/newChat", middleware, async (req, res) => {
 
 
         const values2 = [
-            chats?.chats?.message, chats?.chats?.sender, title_id
-            // chats?.response?.data, chats?.response?.sender, title_id
+            chats?.message, chats?.sender, title_id
         ];
 
         connection.query(query2, values2, (err, data) => {
@@ -71,7 +70,7 @@ router.delete("/deleteChatTitle", middleware, (req, res) => {
     })
 })
 
-router.get("/getChatTitle", middleware, (req, res) => {
+router.get("/getChatTitle", (req, res) => {
     const { user_id } = req.query;
 
     const query = 'select * from chat_titles where user_id=? and status=0'
@@ -85,7 +84,7 @@ router.get("/getChatTitle", middleware, (req, res) => {
     });
 })
 
-router.get("/getAllChats", middleware, (req, res) => {
+router.get("/getAllChats", (req, res) => {
     const { title_id } = req.query;
     connection.query(`select * from chats where title_id=? `, [title_id], (err, data) => {
         if (err) {
