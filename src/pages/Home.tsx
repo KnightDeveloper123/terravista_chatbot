@@ -14,6 +14,7 @@ const Home: React.FC = () => {
     const { titleId, userId } = useParams();
 
 
+
     return (
         <Flex h={'100vh'} bg={'#F2F2F2'} p={4} gap={2}>
             <Box w={'400px'} h={'100%'}>
@@ -33,7 +34,15 @@ const Home: React.FC = () => {
                         <Heading fontSize={'24px'} fontWeight={700} w={'50%'} textAlign={'center'}>Unleash AI with CiplaGPT Smarter Ideas and insights at your Fingertips</Heading>
                         <Text mt={4} w={'70%'} color={'gray.600'} textAlign={'center'}>Turn imagination into impact with ChatGPT’s AI built to unlock endless possibilities and shape your ideas into intelligent results.</Text>
 
-                        <Textarea w={'80%'} bg={'#fff'} borderRadius={'10px'} mt={4} rows={5} placeholder='Ask me anything...' />
+                        <Textarea w={'70%'} bg={'#fff'} borderRadius={'10px'} border="1px solid #005392" mt={4} rows={5} placeholder='Ask me anything...' _focus={{
+                            outline: 'none',
+                            borderColor: '#005392', // optional border color
+                            boxShadow: '0 0 8px 2px rgba(0, 83, 146, 0.7)', // glowing effect
+                        }}
+                            _hover={{
+                                boxShadow: '0 0 6px 1px rgba(0, 83, 146, 0.5)',
+                            }}
+                        />
                     </Flex>}
                 </Flex>
             </Box>
