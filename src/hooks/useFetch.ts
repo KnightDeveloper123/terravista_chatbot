@@ -12,7 +12,6 @@ interface RequestOptions {
     withLoader?: boolean;
 }
 
-
 const useFetch = <T = any>() => {
     const { addError } = useError();
 

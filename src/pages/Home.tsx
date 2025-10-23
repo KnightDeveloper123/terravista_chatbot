@@ -1,15 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, VStack, Text, Button, Input, Icon, Avatar, Separator, Flex, IconButton, Image, Heading, Textarea } from "@chakra-ui/react"
-import { FiPlus, FiSettings, FiHelpCircle, FiSearch } from "react-icons/fi"
+import { Box, VStack, Text, Button, Avatar, Separator, Flex, IconButton, Image, Heading, Textarea } from "@chakra-ui/react"
+import { FiPlus, FiSettings, FiHelpCircle } from "react-icons/fi"
 import { GoSidebarExpand } from 'react-icons/go';
 import { IoSearchSharp, IoSend } from 'react-icons/io5';
-import { PiChatsBold } from 'react-icons/pi';
 import { LuMessageSquareText } from 'react-icons/lu';
 
 // @ts-ignore
 import logo from "../assets/logo.png";
 import { useNavigate, useParams } from 'react-router';
-import { toaster } from '@/components/ui/toaster';
 import useFetch from '@/hooks/useFetch';
 import { showAlert } from '@/utils/helpers';
 import { MdDelete } from 'react-icons/md';
