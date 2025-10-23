@@ -139,6 +139,7 @@ const Home: React.FC = () => {
                 if (newTitleId) {
                     currentTitleId = newTitleId;
                     navigate(`/home/${userId}/${currentTitleId}`);
+                    await getSidebarData(userId);
                 }
             } else {
                 await sendResponse(value, "user");
