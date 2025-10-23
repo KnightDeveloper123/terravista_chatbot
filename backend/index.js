@@ -8,7 +8,7 @@ const path = require("path");
 
 const app = express();
 
-const allowedOrigin = "http://localhost:5173"; // your frontend
+const allowedOrigin = process.env.FRONTEND_URL; // your frontend
 
 app.use(
     cors({
