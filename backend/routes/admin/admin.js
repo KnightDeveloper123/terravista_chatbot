@@ -363,7 +363,7 @@ router.post("/changePassword", async (req, res) => {
             const generatedOtp = crypto.randomInt(100000, 999999).toString();
             const expiry = Date.now() + 5 * 60 * 1000; // 5 minutes
             otpStore[email] = { otp: generatedOtp, expiry };
-
+            log
             await sendOtp(generatedOtp, email, checkEmail[0].name);
             return res.json({ step: "otp-verification", message: "OTP sent to email", email });
         }

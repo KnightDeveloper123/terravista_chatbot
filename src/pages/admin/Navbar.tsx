@@ -1,8 +1,8 @@
 import { Box, Button, CloseButton, Drawer, Flex, Heading, IconButton, Input, InputGroup, Menu, Portal, Text, useDisclosure } from '@chakra-ui/react';
 import React from 'react';
+import { GoPerson } from 'react-icons/go';
 import { IoMenu } from 'react-icons/io5';
 import { LuSearch } from 'react-icons/lu';
-import { MdNotificationsNone } from 'react-icons/md';
 
 const Navbar: React.FC = () => {
     return (
@@ -58,7 +58,7 @@ const Navbar: React.FC = () => {
                     <Menu.Root>
                         <Menu.Trigger asChild>
                             <IconButton variant="outline" borderRadius={'full'} size="sm">
-                                <MdNotificationsNone />
+                                <GoPerson />
                             </IconButton>
                         </Menu.Trigger>
                         <Portal>
