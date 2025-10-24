@@ -30,7 +30,7 @@ const upload = multer({
 });
 
 
-router.post("/add", middleware, async (req, res) => {
+router.post("/add", async (req, res) => {
     try {
         const { name, email, mobile_no, date_of_birth, role } = req.body;
 

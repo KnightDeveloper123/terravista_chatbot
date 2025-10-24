@@ -132,8 +132,10 @@ const Home: React.FC = () => {
         setAllChats(updatedChats);
         setValue("");
         try {
-            let currentTitleId = titleId;
 
+
+
+            let currentTitleId = titleId;
             if (!currentTitleId) {
                 const newTitleId = await sendNewChat(message);
                 if (newTitleId) {
@@ -145,10 +147,7 @@ const Home: React.FC = () => {
                 await sendResponse(value, "user");
             }
 
-            const botRes = await request({
-                url: `/ai/get-info?query=${encodeURIComponent(value)}`,
-                method: "GET",
-            });
+            const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
 
 
             if (botRes.success) {
