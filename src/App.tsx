@@ -7,6 +7,9 @@ import Home from './pages/Home'
 import AdminLogin from './pages/auth/AdminLogin'
 
 import { Toaster } from './components/ui/toaster'
+import AdminLayout from './pages/admin/AdminLayout'
+import Dashboard from './pages/admin/Dashboard'
+import Users from './pages/admin/Users'
 
 function App() {
   return (
@@ -20,6 +23,10 @@ function App() {
         <Route path="/home/:userId/:titleId?" element={<Home />} />
 
         <Route path="/admin/login" element={<AdminLogin />} />
+        <Route path='/admin/*' element={<AdminLayout />}>
+          <Route path='dashboard' element={<Dashboard />} />
+          <Route path='users' element={<Users />} />
+        </Route>
 
       </Routes>
     </HashRouter>
