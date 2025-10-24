@@ -158,7 +158,6 @@ const Login: React.FC = () => {
                             </Stack>
                         </Fieldset.Root>
                     </form>
-                    <Text fontSize={'12px'} mt={2} _hover={{ color: "#005392", cursor: 'pointer' }} onClick={() => navigate('/auth/register')}>Don't have an account?</Text>
                 </Flex>
 
             </Flex>
