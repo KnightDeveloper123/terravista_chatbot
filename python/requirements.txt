@@ -16,3 +16,5 @@ python-multipart
 textblob
 pyspellchecker
 accelerate
+python-docx 
+llama-cpp-python
