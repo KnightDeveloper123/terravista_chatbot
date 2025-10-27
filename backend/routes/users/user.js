@@ -8,7 +8,7 @@ const { addUserSchema, updateUserSchema, deleteUserSchema } = require("../../val
 
 
 
-const router=express.Router();
+const router = express.Router();
 
 
 router.post("/login", async (req, res) => {
@@ -50,21 +50,21 @@ router.post("/login", async (req, res) => {
 
 router.post("/signUp", async (req, res) => {
     try {
-        const { name, email,password } = req.body;
+        const { name, email, password } = req.body;
 
         console.log(req.body);
-        
+
 
         var salt = bcrypt.genSaltSync(10);
         const secPass = await bcrypt.hash(password, salt);
         console.log(secPass);
-        
-        
+
+
 
         const { error } = addUserSchema.validate(req.body, { abortEarly: false });
 
         console.log(error);
-        
+
         if (error) {
             return res.status(400).json({ error: error.details[0]?.message });
         }
@@ -75,9 +75,9 @@ router.post("/signUp", async (req, res) => {
         }
 
         console.log(checkEmail);
-        
+
         const insertQuery = 'insert into user (name, email,password) values (?, ?, ?);'
-        connection.execute(insertQuery, [name, email,secPass], (err, data) => {
+        connection.execute(insertQuery, [name, email, secPass], (err, data) => {
             if (err) {
                 // console.log(err);
                 return res.status(400).json({ error: "Something went wrong" })
@@ -92,7 +92,7 @@ router.post("/signUp", async (req, res) => {
 
 router.post("/updateUser", async (req, res) => {
     try {
-        const { user_id,password, ...rest } = req.body;
+        const { user_id, password, ...rest } = req.body;
         const { error } = updateUserSchema.validate(req.body, { abortEarly: false });
         if (error) {
             return res.status(400).json({ error: error.details.map(err => err.message) });
@@ -132,11 +132,11 @@ router.post("/updateUser", async (req, res) => {
     }
 });
 
-router.post("/deleteUser", async (req, res) => {
+router.get("/deleteUser", async (req, res) => {
     try {
-        const { user_id } = req.body;
+        const { user_id } = req.query;
 
-        const { error } = deleteUserSchema.validate(req.body, { abortEarly: false });
+        const { error } = deleteUserSchema.validate(req.query, { abortEarly: false });
         if (error) {
             return res.status(400).json({ error: error.details.map(err => err.message) });
         }
@@ -161,7 +161,7 @@ router.post("/deleteUser", async (req, res) => {
 
 router.get("/getAllUser", async (req, res) => {
     try {
-        connection.query(`select * from user where status=0`, (err, result) => {
+        connection.query(`select id, name, email, mobile_no, status, created_at, updated_at, last_login, date_of_birth, account_status from user where status=0`, (err, result) => {
             if (err) {
                 console.log(err);
                 return res.status(400).json({ error: "Something went wrong" })
@@ -190,4 +190,4 @@ router.get("/getUser/:id", async (req, res) => {
     }
 });
 
-module.exports=router;
+module.exports = router;
