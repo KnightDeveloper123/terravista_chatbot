@@ -132,6 +132,7 @@ const Home: React.FC = () => {
         setAllChats(updatedChats);
         setValue("");
         try {
+            setIsAiThinking(true);
             let currentTitleId = titleId;
             if (!currentTitleId) {
                 const newTitleId = await sendNewChat(message);
@@ -144,7 +145,6 @@ const Home: React.FC = () => {
                 await sendResponse(value, "user");
             }
 
-            setIsAiThinking(true);
             const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
 
             if (botRes.success) {
@@ -448,7 +448,7 @@ const Home: React.FC = () => {
 
                             {isAiThinking && (
                                 <Flex flexDir="column" alignSelf="flex-start" my="8px">
-                                    <Box bg="#005392" color="white" borderRadius="20px" p="10px" maxW="60%" boxShadow="md">
+                                    <Box color="white" boxShadow="md" ml={'30px'}>
                                         <Box className="loader" />
                                     </Box>
                                 </Flex>
@@ -477,7 +477,7 @@ const Home: React.FC = () => {
                                 }}
                             />
 
-                            <IconButton onClick={handleSubmit} _hover={{ bg: '#004276' }} _active={{ bg: '#00365f' }} bg="#005392" color="#fff" borderRadius="full" aria-label="Search database">
+                            <IconButton disabled={isAiThinking} onClick={handleSubmit} _hover={{ bg: '#004276' }} _active={{ bg: '#00365f' }} bg="#005392" color="#fff" borderRadius="full" aria-label="Search database">
                                 <IoSend />
                             </IconButton>
                         </Flex>
