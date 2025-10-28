@@ -58,6 +58,7 @@ const Home: React.FC = () => {
     const [value, setValue] = useState<string>("");
     const [allTitles, setAllTitles] = useState<ChatTitle[]>([]);
     const [allChats, setAllChats] = useState<ChatMessage[]>([]);
+    const [isAiThinking, setIsAiThinking] = useState<boolean>(false);
     const [reportData, setReportData] = useState<string>("");
     const [feedbackMap, setFeedbackMap] = useState<FeedbackMap>({});
     const [copiedChatId, setCopiedChatId] = useState<number | null>(null);
@@ -93,7 +94,6 @@ const Home: React.FC = () => {
 
     /** Send a chat message (user or bot) */
     const sendResponse = useCallback(async (message: string, sender: Sender, title_id?: string) => {
-
         try {
             await request({
                 url: `/chatbot/addChat`,
@@ -132,9 +132,6 @@ const Home: React.FC = () => {
         setAllChats(updatedChats);
         setValue("");
         try {
-
-
-
             let currentTitleId = titleId;
             if (!currentTitleId) {
                 const newTitleId = await sendNewChat(message);
@@ -147,8 +144,8 @@ const Home: React.FC = () => {
                 await sendResponse(value, "user");
             }
 
+            setIsAiThinking(true);
             const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
-
 
             if (botRes.success) {
                 const botMessage: ChatMessage = {
@@ -164,6 +161,8 @@ const Home: React.FC = () => {
             console.error("Error handling chat:", err);
             setAllChats((prev) => [...prev, { message: "I am not able to find", sender: "bot", title_id: Number(titleId) }]);
             showAlert("Error", (err as Error).message || "Something went wrong", "error");
+        } finally {
+            setIsAiThinking(false);
         }
     }, [allChats, request, sendNewChat, sendResponse, titleId, userId, value, navigate]);
 
@@ -264,10 +263,33 @@ const Home: React.FC = () => {
         }
     }
 
-    const handleCopy = (message: string, chatId: number) => {
-        navigator.clipboard.writeText(message); // copy to clipboard
-        setCopiedChatId(chatId);               // mark as copied
-        setTimeout(() => setCopiedChatId(null), 1500); // reset after 1.5s
+    const handleCopy = async (message: string, chatId: number) => {
+        try {
+            await navigator.clipboard.writeText(message);
+            setCopiedChatId(chatId);
+            setTimeout(() => setCopiedChatId(null), 1500);
+        } catch (err) {
+            console.error("Clipboard copy failed, using fallback:", err);
+
+            const textarea = document.createElement("textarea");
+            textarea.value = message;
+            textarea.style.position = "fixed";
+            textarea.style.left = "-9999px";
+            textarea.style.top = "0";
+            document.body.appendChild(textarea);
+            textarea.focus();
+            textarea.select();
+
+            try {
+                document.execCommand("copy");
+                setCopiedChatId(chatId);
+                setTimeout(() => setCopiedChatId(null), 1500);
+            } catch (fallbackErr) {
+                console.error("Fallback copy failed:", fallbackErr);
+            }
+
+            document.body.removeChild(textarea);
+        }
     };
 
 
@@ -423,6 +445,14 @@ const Home: React.FC = () => {
                                     </Flex>
                                 )
                             })}
+
+                            {isAiThinking && (
+                                <Flex flexDir="column" alignSelf="flex-start" my="8px">
+                                    <Box bg="#005392" color="white" borderRadius="20px" p="10px" maxW="60%" boxShadow="md">
+                                        <Box className="loader" />
+                                    </Box>
+                                </Flex>
+                            )}
                         </Flex>
 
                         <Flex align="center" gap={2} mt={4} w={'100%'}>
