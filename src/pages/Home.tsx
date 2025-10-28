@@ -216,7 +216,6 @@ const Home: React.FC = () => {
         if (titleId) getAllChats(titleId);
     }, [userId, titleId, getAllChats]);
 
-
     const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault()
@@ -272,6 +271,13 @@ const Home: React.FC = () => {
     };
 
 
+    const chatContainerRef = useRef<HTMLDivElement | null>(null);
+    useEffect(() => {
+        if (chatContainerRef.current) {
+            chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+        }
+    }, [allChats]);
+
     return (
         <Flex h={'100vh'} bg={'#F2F2F2'} p={4} gap={2}>
             <Box w={'400px'} h={'100%'}>
@@ -322,7 +328,7 @@ const Home: React.FC = () => {
                             </IconButton>
                         </Flex>
                     </Flex> : <Flex p={4} flexDir={'column'} w={'100%'}>
-                        <Flex flex={1} gap={2} h={'100%'} overflow={'auto'} flexDir={'column'} className="scroll-container">
+                        <Flex flex={1} gap={2} h={'100%'} overflow={'auto'} flexDir={'column'} className="scroll-container" ref={chatContainerRef}>
                             {allChats.map((chat, index) => {
                                 return (
                                     <Flex key={index} flexDir={'column'}>
@@ -388,27 +394,6 @@ const Home: React.FC = () => {
                                                             );
                                                         })}
                                                     </Box>
-
-                                                    {/* <HStack spacing={4}>
-                                                                    <IconButton
-                                                                        icon={<FaThumbsUp />}
-                                                                        colorScheme={liked ? 'blue' : 'gray'}
-                                                                        variant={liked ? 'solid' : 'outline'}
-                                                                        aria-label="Like"
-                                                                        onClick={handleLike}
-                                                                    />
-                                                                    <Text>{liked ? 'Liked' : ''}</Text>
-                                
-                                                                    <IconButton
-                                                                        icon={<FaThumbsDown />}
-                                                                        colorScheme={disliked ? 'red' : 'gray'}
-                                                                        variant={disliked ? 'solid' : 'outline'}
-                                                                        aria-label="Dislike"
-                                                                        onClick={handleDislike}
-                                                                    />
-                                                                    <Text>{disliked ? 'Disliked' : ''}</Text>
-                                                                </HStack> */}
-
                                                 </Box>
                                             )}
                                         </Box>
