@@ -145,11 +145,11 @@ const Home: React.FC = () => {
                 await sendResponse(value, "user");
             }
 
-            const botRes = await request({ url: `/stream_info?query=${encodeURIComponent(value)}`, method: "GET" });
+            const botRes = await request({ url: `/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
 
             if (titleId) {
                 const res = await request({
-                    url: `/stream_info`,
+                    url: `/get-info`,
                     method: "POST",
                     body: {
                         "query": value,
