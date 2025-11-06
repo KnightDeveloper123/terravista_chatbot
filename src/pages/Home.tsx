@@ -145,7 +145,18 @@ const Home: React.FC = () => {
                 await sendResponse(value, "user");
             }
 
-            const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
+            const botRes = await request({ url: `/stream_info?query=${encodeURIComponent(value)}`, method: "GET" });
+
+            if (titleId) {
+                const res = await request({
+                    url: `/stream_info`,
+                    method: "POST",
+                    body: {
+                        "query": value,
+                        "title_id": titleId
+                    },
+                });
+            }
 
             if (botRes.success) {
                 const botMessage: ChatMessage = {
