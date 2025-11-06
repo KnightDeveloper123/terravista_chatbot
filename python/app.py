@@ -619,7 +619,7 @@ async def ask_chat(request: Request):
     selected_hist[-1]["response"] = final_answer
     save_context_file(selected_hist)
 
-    return JSONResponse({"response": final_answer})
+    return JSONResponse({"answer": final_answer})
 
 if __name__ == "__main__":
     import uvicorn
