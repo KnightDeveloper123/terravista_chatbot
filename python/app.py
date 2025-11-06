@@ -479,20 +479,22 @@ app = FastAPI(title="Real Estate Chatbot")
 
 @app.api_route("/stream_info", methods=["GET", "POST"])
 async def ask_chat(request: Request):
+    global LAST_TITLE_ID
+
+    title_id = None
+    query = None
+
     if request.method == "POST":
         form = await request.form()
-        query = form.get("query")
-        title_id = form.get("title_id")  # ✅ extract title ID 
-        
-        global LAST_TITLE_ID
+        title_id = form.get("title_id")  # ✅ Only title_id allowed in POST
+
         if title_id and title_id != LAST_TITLE_ID:
             reset_context()
             LAST_TITLE_ID = title_id
 
-    else:
-        query = request.query_params.get("query")
-        title_id = request.query_params.get("title_id")
-
+    else:  # GET request
+        query = request.query_params.get("query")  # ✅ Only query allowed in GET
+        title_id = request.query_params.get("title_id")  # Optional for GET
 
     session_id = get_session_id(request)
 
