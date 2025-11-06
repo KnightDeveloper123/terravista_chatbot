@@ -499,11 +499,10 @@ async def ask_chat(request: Request):
     session_id = get_session_id(request)
 
     if not query or not query.strip():
-        welcome_text = "Welcome sir! How can I assist you regarding real estate queries?"
-        async def stream_welcome():
-            for ch in welcome_text:
-                yield ch
-        return StreamingResponse(stream_welcome(), media_type="text/plain")
+        return JSONResponse({
+            "answer": "Title ID stored. Please send a GET request with a query."
+        })
+
 
     # Build spelling dictionary if needed
     if not os.path.exists(OUTPUT_DICT):
