@@ -55,7 +55,7 @@ app.use('/chatbot', require("./routes/users/chatbot"))
 app.use('/ai', require('./routes/users/aiChat'));
 
 
-const port = 7501;
+const port = 7601;
 app.listen(port, () => {
     console.log(`http://localhost:${port}`)
 
