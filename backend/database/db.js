@@ -3,7 +3,7 @@ var connection = mysql2.createPool({
     host: 'localhost',
     user: 'root',
     password: 'root',
-    database: 'cipla_chatbot',
+    database: 'terravista_chatbot',
 })
 
 

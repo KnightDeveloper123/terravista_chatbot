@@ -1,8 +1,8 @@
--- MySQL dump 10.13  Distrib 8.0.42, for Win64 (x86_64)
+-- MySQL dump 10.13  Distrib 8.0.41, for Win64 (x86_64)
 --
--- Host: localhost    Database: cipla_chatbot
+-- Host: localhost    Database: terravista_chatbot
 -- ------------------------------------------------------
--- Server version	8.0.42
+-- Server version	8.0.41
 
 /*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
 /*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
@@ -279,7 +279,7 @@ CREATE TABLE `chat_titles` (
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
   CONSTRAINT `chat_titles_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `user` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=14 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -288,7 +288,7 @@ CREATE TABLE `chat_titles` (
 
 LOCK TABLES `chat_titles` WRITE;
 /*!40000 ALTER TABLE `chat_titles` DISABLE KEYS */;
-INSERT INTO `chat_titles` VALUES (1,'New Chat 23 October 2025',8,'2025-10-23 06:38:31',NULL,1),(2,'New Chat 23 October 2025',8,'2025-10-23 06:40:24',NULL,1),(3,'New Chat 23 October 2025',8,'2025-10-23 06:41:55',NULL,0),(4,'New Chat 23 October 2025',8,'2025-10-23 06:42:30',NULL,0),(5,'New Chat 23 October 2025',8,'2025-10-23 06:43:07',NULL,0),(6,'New Chat 23 October 2025',8,'2025-10-23 06:45:52',NULL,0),(7,'New Chat 23 October 2025',8,'2025-10-23 06:46:07',NULL,0),(8,'New Chat 23 October 2025',9,'2025-10-23 10:10:07',NULL,1),(9,'New Chat 23 October 2025',9,'2025-10-23 10:10:22',NULL,1),(10,'New Chat 23 October 2025',9,'2025-10-23 10:11:39',NULL,0),(11,'New Chat 23 October 2025',9,'2025-10-23 12:45:35',NULL,0);
+INSERT INTO `chat_titles` VALUES (1,'New Chat 23 October 2025',8,'2025-10-23 06:38:31',NULL,1),(2,'New Chat 23 October 2025',8,'2025-10-23 06:40:24',NULL,1),(3,'New Chat 23 October 2025',8,'2025-10-23 06:41:55',NULL,0),(4,'New Chat 23 October 2025',8,'2025-10-23 06:42:30',NULL,0),(5,'New Chat 23 October 2025',8,'2025-10-23 06:43:07',NULL,0),(6,'New Chat 23 October 2025',8,'2025-10-23 06:45:52',NULL,0),(7,'New Chat 23 October 2025',8,'2025-10-23 06:46:07',NULL,0),(8,'New Chat 23 October 2025',9,'2025-10-23 10:10:07',NULL,1),(9,'New Chat 23 October 2025',9,'2025-10-23 10:10:22',NULL,1),(10,'New Chat 23 October 2025',9,'2025-10-23 10:11:39',NULL,0),(11,'New Chat 23 October 2025',9,'2025-10-23 12:45:35',NULL,0),(12,'New Chat 6 November 2025',10,'2025-11-06 05:45:15',NULL,0),(13,'New Chat 6 November 2025',10,'2025-11-06 05:50:29',NULL,0);
 /*!40000 ALTER TABLE `chat_titles` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -309,7 +309,7 @@ CREATE TABLE `chats` (
   PRIMARY KEY (`id`),
   KEY `title_id` (`title_id`),
   CONSTRAINT `chats_ibfk_1` FOREIGN KEY (`title_id`) REFERENCES `chat_titles` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=24 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=26 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -318,7 +318,7 @@ CREATE TABLE `chats` (
 
 LOCK TABLES `chats` WRITE;
 /*!40000 ALTER TABLE `chats` DISABLE KEYS */;
-INSERT INTO `chats` VALUES (1,1,'user','hi','2025-10-23 06:38:32',NULL),(2,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:38:32',NULL),(3,2,'user','hi','2025-10-23 06:40:24',NULL),(4,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:40:25',NULL),(5,3,'user','hi','2025-10-23 06:41:55',NULL),(6,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:41:55',NULL),(7,4,'user','hi','2025-10-23 06:42:30',NULL),(8,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:42:30',NULL),(9,5,'user','hi','2025-10-23 06:43:07',NULL),(10,6,'user','hi','2025-10-23 06:45:52',NULL),(11,6,'bot','Hi There How I Can Help You.','2025-10-23 06:45:52',NULL),(12,7,'user','hi','2025-10-23 06:46:07',NULL),(13,7,'bot','Hi There How I Can Help You.','2025-10-23 06:46:07',0),(14,7,'user','nothing','2025-10-23 06:46:30',NULL),(15,7,'bot','I\'M Not Sure About That.','2025-10-23 06:46:31',1),(16,8,'user','hi','2025-10-23 10:10:07',NULL),(17,8,'bot','Hi There How I Can Help You.','2025-10-23 10:10:07',NULL),(18,9,'user','hi','2025-10-23 10:10:22',NULL),(19,9,'bot','Hi There How I Can Help You.','2025-10-23 10:10:22',NULL),(20,10,'user','hi','2025-10-23 10:11:39',NULL),(21,10,'bot','Hi There How I Can Help You.','2025-10-23 10:11:39',NULL),(22,11,'user','hi','2025-10-23 12:45:35',NULL),(23,11,'bot','Hi There How I Can Help You.','2025-10-23 12:45:35',NULL);
+INSERT INTO `chats` VALUES (1,1,'user','hi','2025-10-23 06:38:32',NULL),(2,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:38:32',NULL),(3,2,'user','hi','2025-10-23 06:40:24',NULL),(4,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:40:25',NULL),(5,3,'user','hi','2025-10-23 06:41:55',NULL),(6,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:41:55',NULL),(7,4,'user','hi','2025-10-23 06:42:30',NULL),(8,NULL,'bot','Hi There How I Can Help You.','2025-10-23 06:42:30',NULL),(9,5,'user','hi','2025-10-23 06:43:07',NULL),(10,6,'user','hi','2025-10-23 06:45:52',NULL),(11,6,'bot','Hi There How I Can Help You.','2025-10-23 06:45:52',NULL),(12,7,'user','hi','2025-10-23 06:46:07',NULL),(13,7,'bot','Hi There How I Can Help You.','2025-10-23 06:46:07',0),(14,7,'user','nothing','2025-10-23 06:46:30',NULL),(15,7,'bot','I\'M Not Sure About That.','2025-10-23 06:46:31',1),(16,8,'user','hi','2025-10-23 10:10:07',NULL),(17,8,'bot','Hi There How I Can Help You.','2025-10-23 10:10:07',NULL),(18,9,'user','hi','2025-10-23 10:10:22',NULL),(19,9,'bot','Hi There How I Can Help You.','2025-10-23 10:10:22',NULL),(20,10,'user','hi','2025-10-23 10:11:39',NULL),(21,10,'bot','Hi There How I Can Help You.','2025-10-23 10:11:39',NULL),(22,11,'user','hi','2025-10-23 12:45:35',NULL),(23,11,'bot','Hi There How I Can Help You.','2025-10-23 12:45:35',NULL),(24,12,'user','hello','2025-11-06 05:45:15',NULL),(25,13,'user','hello','2025-11-06 05:50:29',NULL);
 /*!40000 ALTER TABLE `chats` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -766,7 +766,7 @@ CREATE TABLE `user` (
   `account_status` int NOT NULL DEFAULT '0',
   PRIMARY KEY (`id`),
   UNIQUE KEY `email` (`email`)
-) ENGINE=InnoDB AUTO_INCREMENT=10 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+) ENGINE=InnoDB AUTO_INCREMENT=11 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 --
@@ -775,7 +775,7 @@ CREATE TABLE `user` (
 
 LOCK TABLES `user` WRITE;
 /*!40000 ALTER TABLE `user` DISABLE KEYS */;
-INSERT INTO `user` VALUES (1,'Ashwin Gh','ashwingh@gmail.com','$2b$10$Yhv1Lkt3OaZFn00SYws.7ePBC4G.qwK0fKyJRK/MTNtAz74kvJYjW','123456789',1,'2025-03-27 08:45:59','2025-03-27 09:09:01',NULL,NULL,0),(2,'Sharv S','sharv@gmail.com','$2b$10$A.CS56i73o1XQSJfIM4OpeyeOCsVnc8DJYMFdrOuWMMbx9LG.J1.e','1234567890',1,'2025-03-27 08:50:22','2025-10-24 12:36:10','2025-04-26 10:40:59',NULL,0),(3,'Animesh','animesh@gmail.com','$2b$10$wSJywrCLACEzOt.6SgQPtuvpaaTG3tLAeT4de9g9JN/QAqIC/Onim','1234567890',1,'2025-03-27 08:50:42','2025-10-24 12:36:12','2025-03-29 05:07:35',NULL,0),(4,'priyanka','priyanka@mailinator.com','$2b$10$FTKgANOd/mZaSRHMaCwDUezUY38P2HQHGvbnDQ4BHktbMQtvbi6l6',NULL,0,'2025-05-13 09:46:44','2025-05-17 09:14:03','2025-05-17 09:14:03',NULL,0),(5,'Sushil Patil','sushil@mailinator.com','$2b$10$5F8Azs4PtXH34ShazK9exeO3vsO6hK6IXKHiBMpvyw28GQrxgsvLW',NULL,0,'2025-06-05 15:54:46','2025-08-04 09:25:24','2025-08-04 09:25:24',NULL,0),(6,'Sayali Shelake','sayali@mailinator.com','$2b$10$NqSu/inu3A1G482iwXd1BOMIajRX/zU8qaEMl5MLnVQ6xr/P1XCZu',NULL,0,'2025-07-02 05:41:36','2025-07-08 07:37:20','2025-07-08 07:37:20',NULL,0),(7,'Tejas Chavan','lordraiden1501@gmail.com','$2b$10$40bLjim2sAapu55TpncWZeb/0RC6yDov5AWt5Kl79Id0QHIUyT8ea',NULL,0,'2025-08-04 10:36:17','2025-08-04 10:51:25','2025-08-04 10:51:25',NULL,0),(8,'Harshal Joshi','harshal@mailinator.com','$2b$10$mCNPHwTrE10R63psQ3SID.I4eGWKe.hYG9nBVbawplqU.vBcqFm5u',NULL,0,'2025-08-04 11:00:46','2025-10-23 06:09:34','2025-10-23 06:09:34',NULL,0),(9,'Animesh Pradhan','dr.illuminati.06@gmail.com','$2b$10$V66HINq1iLtiMll9ALo3RebU6pdImivJ7.jgKJTt8RtWImVT8mfty',NULL,0,'2025-10-23 10:09:40','2025-10-23 11:11:42','2025-10-23 11:11:42',NULL,0);
+INSERT INTO `user` VALUES (1,'Ashwin Gh','ashwingh@gmail.com','$2b$10$Yhv1Lkt3OaZFn00SYws.7ePBC4G.qwK0fKyJRK/MTNtAz74kvJYjW','123456789',1,'2025-03-27 08:45:59','2025-03-27 09:09:01',NULL,NULL,0),(2,'Sharv S','sharv@gmail.com','$2b$10$A.CS56i73o1XQSJfIM4OpeyeOCsVnc8DJYMFdrOuWMMbx9LG.J1.e','1234567890',1,'2025-03-27 08:50:22','2025-10-24 12:36:10','2025-04-26 10:40:59',NULL,0),(3,'Animesh','animesh@gmail.com','$2b$10$wSJywrCLACEzOt.6SgQPtuvpaaTG3tLAeT4de9g9JN/QAqIC/Onim','1234567890',1,'2025-03-27 08:50:42','2025-10-24 12:36:12','2025-03-29 05:07:35',NULL,0),(4,'priyanka','priyanka@mailinator.com','$2b$10$FTKgANOd/mZaSRHMaCwDUezUY38P2HQHGvbnDQ4BHktbMQtvbi6l6',NULL,0,'2025-05-13 09:46:44','2025-05-17 09:14:03','2025-05-17 09:14:03',NULL,0),(5,'Sushil Patil','sushil@mailinator.com','$2b$10$5F8Azs4PtXH34ShazK9exeO3vsO6hK6IXKHiBMpvyw28GQrxgsvLW',NULL,0,'2025-06-05 15:54:46','2025-08-04 09:25:24','2025-08-04 09:25:24',NULL,0),(6,'Sayali Shelake','sayali@mailinator.com','$2b$10$NqSu/inu3A1G482iwXd1BOMIajRX/zU8qaEMl5MLnVQ6xr/P1XCZu',NULL,0,'2025-07-02 05:41:36','2025-07-08 07:37:20','2025-07-08 07:37:20',NULL,0),(7,'Tejas Chavan','lordraiden1501@gmail.com','$2b$10$40bLjim2sAapu55TpncWZeb/0RC6yDov5AWt5Kl79Id0QHIUyT8ea',NULL,0,'2025-08-04 10:36:17','2025-08-04 10:51:25','2025-08-04 10:51:25',NULL,0),(8,'Harshal Joshi','harshal@mailinator.com','$2b$10$mCNPHwTrE10R63psQ3SID.I4eGWKe.hYG9nBVbawplqU.vBcqFm5u',NULL,0,'2025-08-04 11:00:46','2025-10-23 06:09:34','2025-10-23 06:09:34',NULL,0),(9,'Animesh Pradhan','dr.illuminati.06@gmail.com','$2b$10$V66HINq1iLtiMll9ALo3RebU6pdImivJ7.jgKJTt8RtWImVT8mfty',NULL,0,'2025-10-23 10:09:40','2025-10-23 11:11:42','2025-10-23 11:11:42',NULL,0),(10,'Sushil Patil','sushilpatil@mailinator.com','$2b$10$niwcYcXeiIsxO5j.2f4bN.Q1MMvGh51Q0e.caeV7z9DQaxZ43kdfe',NULL,0,'2025-11-06 05:44:44','2025-11-06 05:45:06','2025-11-06 05:45:06',NULL,0);
 /*!40000 ALTER TABLE `user` ENABLE KEYS */;
 UNLOCK TABLES;
 
@@ -868,4 +868,4 @@ UNLOCK TABLES;
 /*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
--- Dump completed on 2025-10-27 11:20:18
+-- Dump completed on 2025-11-06 11:27:23
