@@ -149,12 +149,8 @@ const Home: React.FC = () => {
 
             if (titleId) {
                 const res = await request({
-                    url: `/ai/get-info`,
-                    method: "POST",
-                    body: {
-                        query: value,
-                        title_id: titleId
-                    },
+                    url: `/ai/get-info?title_id=${titleId}`,
+                    method: "POST"
                 });
             }
 
