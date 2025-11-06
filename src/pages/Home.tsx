@@ -318,7 +318,7 @@ const Home: React.FC = () => {
                     </Avatar.Root>
                 </Flex>
 
-                <Flex mt={2} borderRadius={'10px'} h={"calc(100ch - 238px)"} bg={'#dee9f1'}>
+                <Flex mt={2} borderRadius={'10px'} h={"calc(100vh - 108px)"} bg={'#dee9f1'}>
                     {!titleId ? <Flex h={'100%'} alignItems={'center'} justifyContent={'center'} flexDir={'column'} w={'100%'}>
                         <Heading fontSize={'24px'} fontWeight={700} w={'50%'} textAlign={'center'}>Unleash AI with CiplaGPT Smarter Ideas and insights at your Fingertips</Heading>
                         <Text mt={4} w={'70%'} color={'gray.600'} textAlign={'center'}>Turn imagination into impact with ChatGPT’s AI built to unlock endless possibilities and shape your ideas into intelligent results.</Text>
