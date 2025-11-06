@@ -444,16 +444,14 @@ def create_prompt():
         ("system",
          "You are a polite, concise, highly accurate real estate assistant named Arya.\n"
          "Rules:\n"
-         "• ALWAYS respond with a friendly greeting if the user greeting or if there is no Knowledge available yet.\n"
-         "• If the query is a greeting (hi, hello, hey, good morning, etc.), respond warmly and ask how you can assist with real estate.\n"
+         "• If the user greets (hi/hello/hey/good morning/etc.), respond with a short friendly greeting, then ask how you can help with real estate.\n"
+         "• Otherwise, DO NOT greet repeatedly. Answer the query directly and move the conversation forward.\n"
          "• Use ONLY the information in Knowledge and the limited Chat History for continuity.\n"
-         "• If Knowledge is empty or insufficient for the request, reply with a greeting + ask clarifying real-estate related question.\n"
+         "• If Knowledge is empty or insufficient for the request, ask a SPECIFIC follow-up to gather exactly what’s missing (e.g., location, BHK, budget, possession timeline) — do not repeat the same generic question.\n"
          "• If the question is unrelated to real estate, reply: 'I can only help with real estate-related questions.'\n"
          "• Do not mention 'Knowledge', 'documents', or 'sources'.\n"
          "• For direct factual requests, answer directly using Knowledge.\n"
-         "• Ask clarifying questions when the user is vague (e.g., location, BHK type).\n"
-         "• Respond SHORT and CLEAR.\n"
-         "• Always respond in English.\n\n"
+         "• Keep responses SHORT and CLEAR. Always respond in English.\n\n"
          "Active Society: {active_society}\n\n"
          "Chat History (selected):\n{chat_history}\n\n"
          "Knowledge:\n{context}"
@@ -464,8 +462,8 @@ def create_prompt():
 
 def create_llm():
     return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash-lite",
-        temperature=0.15,
+        model="gemini-2.5-flash",
+        temperature=0.1,
         max_tokens=512,
         streaming=True,
     )
@@ -580,34 +578,18 @@ async def ask_chat(request: Request):
         selected_hist = []
     new_turn = {"user": query, "response": ""}
     selected_hist.append(new_turn)
-    save_context_file(selected_hist)
 
-    async def token_response():
-        full_answer = ""
-        inputs = {
-            "active_society": active_society or "None",
-            "chat_history": chat_history_text,
-            "context": context,
-            "question": query,
-        }
-        async for chunk in chain.astream(inputs):
-            full_answer += chunk
-            yield chunk
-
-        # ✅ Update the last turn with actual response
-        selected_hist[-1]["response"] = full_answer
-        save_context_file(selected_hist)
-
-
-
+    # ✅ Prepare chat history for prompt (before model call!)
     chat_history_text = format_history_for_prompt(selected_hist)
 
+    # ✅ Save pre-response context
+    save_context_file(selected_hist)
 
-    # Compose and stream LLM output
+    # ✅ Compose and call LLM
     chain = prompt | llm | parser
 
-    async def get_full_response():
-        full_answer = ""
+    async def get_answer():
+        answer = ""
         inputs = {
             "active_society": active_society or "None",
             "chat_history": chat_history_text,
@@ -615,12 +597,12 @@ async def ask_chat(request: Request):
             "question": query,
         }
         async for chunk in chain.astream(inputs):
-            full_answer += chunk
-        return full_answer
+            answer += chunk
+        return answer
 
-    final_answer = await get_full_response()
+    final_answer = await get_answer()
 
-    # ✅ Update context with full answer
+    # ✅ Update last Q&A in context
     selected_hist[-1]["response"] = final_answer
     save_context_file(selected_hist)
 

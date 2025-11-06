@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "user": "good morning",
+    "response": "Hello there! How can I help you with real estate today?"
+  },
+  {
+    "user": "show me property",
+    "response": "I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "yes",
+    "response": "I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "how many developers do you have",
+    "response": "I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  }
+]

@@ -38,5 +38,125 @@
   {
     "user": "what?",
     "response": "Could you please clarify what you're asking about? Are you looking for suggestions for flats, or something else?"
+  },
+  {
+    "user": "hi",
+    "response": "{\"answer\":\"Hello! How can I assist you with your real estate needs today?\"}"
+  },
+  {
+    "user": "i want to buy a property",
+    "response": "{\"answer\":\"Bhk Homes offers properties with 2-4 BHK configurations.\\n\\nWe have:\\n*   Homes ranging from 1,050-2,200 sq ft, starting at ₹95 lakhs for 2BHKs, with possession by Q4 2026.\\n*   Homes ranging from 550-1,450 sq ft, starting at ₹72 lakhs for 2BHKs, with possession by Q1 2027.\\n\\nBoth options offer 10:90 payment plans. What size or budget are you considering?\"}"
+  },
+  {
+    "user": "price of 2bhk",
+    "response": "{\"answer\":\"Bhk Homes offers 2BHKs starting at:\\n*   ₹95 lakhs for homes ranging from 1,050-2,200 sq ft, with possession by Q4 2026.\\n*   ₹72 lakhs for homes\"}"
+  },
+  {
+    "user": "who are the developers",
+    "response": "[error] Server error '500 Internal Server Error' for url 'http://127.0.0.1:7602/stream_info?query=who+are+the+developers'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500"
+  },
+  {
+    "user": "who are the developers",
+    "response": "[error] Server error '500 Internal Server Error' for url 'http://127.0.0.1:7602/stream_info?query=who+are+the+developers'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/500"
+  },
+  {
+    "user": "who are the developers",
+    "response": "{\"answer\":\"Hello there! Bhk Homes has properties from five developers: Galaxy Developers, OneWorld developers, Sobha Limited, Panchshil Realty, and Godrej Properties.\"}"
+  },
+  {
+    "user": "show the property of any one",
+    "response": "{\"answer\":\"Hello there! I can help you with that. Which developer's property would you like to see?\"}"
+  },
+  {
+    "user": "show me of godrej property",
+    "response": "{\"answer\":\"Hello there! Godrej Properties has a project called 'Godrej Eden' in Kalyani Nagar. It offers 3-4 BHK residences from 1,650-3,200 sq ft, starting at ₹2.8 crores for 3BHKs. Possession is expected in Q4 2026.\"}"
+  },
+  {
+    "user": "what is the price of 3bhk",
+    "response": "{\"answer\":\"Hello there! I can help you with that. Are you interested in a 3BHK from a specific developer, or would you like to know the general starting price range for 3BHKs?\"}"
+  },
+  {
+    "user": "hello",
+    "response": "{\"answer\":\"Hello there! How can I assist you with your real estate needs today?\"}"
+  },
+  {
+    "user": "i want to buy property in banner",
+    "response": "{\"answer\":\"Hello there! I can help you with that. Are you looking for properties from a specific developer in Banner, or would you like to know about available options?\"}"
+  },
+  {
+    "user": "yes show the option",
+    "response": "{\"answer\":\"Hello there! I can help you with that. Are you looking for properties from a specific developer in Banner, or would you like to know about available options?\"}"
+  },
+  {
+    "user": "yes",
+    "response": "{\"answer\":\"Hello there! I can help you with that. Are you looking for properties from a specific developer in Banner, or would you like to know about available options?\"}"
+  },
+  {
+    "user": "hi",
+    "response": "Hello there! How can I help you with your real estate needs today?"
+  },
+  {
+    "user": "i want to by property",
+    "response": "Hello there! How can I help you with your real estate needs today?"
+  },
+  {
+    "user": "give me name of property",
+    "response": "Hello there! How can I help you with your real estate needs today?"
+  },
+  {
+    "user": "hiidewofob",
+    "response": "Hello there! How can I help you with your real estate needs today?"
+  },
+  {
+    "user": "hi",
+    "response": "[error] Request URL is missing an 'http://' or 'https://' protocol."
+  },
+  {
+    "user": "hi",
+    "response": "Hello there! How can I assist you with your real estate needs today?"
+  },
+  {
+    "user": "show me property",
+    "response": "Hello there! I can help you with that. Are you looking for properties from a specific developer in Banner, or would you like to know about available options?"
+  },
+  {
+    "user": "yes i want property in magarpatta",
+    "response": "Hello there! I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "yes",
+    "response": "Hello there! I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "yes i want property in magarpatta",
+    "response": "Hello there! I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "give me options of property in margpatta",
+    "response": "Hello there! I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "what aminities you provide",
+    "response": "Hello there! I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "hi",
+    "response": "Hello there! How can I help you with real estate today?"
+  },
+  {
+    "user": "good morning",
+    "response": "Hello there! How can I help you with real estate today?"
+  },
+  {
+    "user": "show me property",
+    "response": "I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "yes",
+    "response": "I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
+  },
+  {
+    "user": "how many developers do you have",
+    "response": "I can help you with that. Are you looking for properties from a specific developer in Magarpatta, or would you like to know about available options?"
   }
 ]
