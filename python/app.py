@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 
 from fastapi import FastAPI, Request
 from fastapi.responses import StreamingResponse
-
+from fastapi.responses import JSONResponse
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
@@ -601,7 +601,8 @@ async def ask_chat(request: Request):
     # Compose and stream LLM output
     chain = prompt | llm | parser
 
-    async def token_response():
+    async def get_full_response():
+        full_answer = ""
         inputs = {
             "active_society": active_society or "None",
             "chat_history": chat_history_text,
@@ -609,10 +610,16 @@ async def ask_chat(request: Request):
             "question": query,
         }
         async for chunk in chain.astream(inputs):
-            # chunk is already text from StrOutputParser
-            yield chunk
+            full_answer += chunk
+        return full_answer
 
-    return StreamingResponse(token_response(), media_type="text/plain")
+    final_answer = await get_full_response()
+
+    # ✅ Update context with full answer
+    selected_hist[-1]["response"] = final_answer
+    save_context_file(selected_hist)
+
+    return JSONResponse({"response": final_answer})
 
 if __name__ == "__main__":
     import uvicorn

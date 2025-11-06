@@ -1,6 +1,18 @@
 [
   {
-    "user": "how much units in oneworld",
-    "response": "PENDING"
+    "user": "hi",
+    "response": ""
+  },
+  {
+    "user": "i want to buy flat suggest me some",
+    "response": ""
+  },
+  {
+    "user": "what?",
+    "response": ""
+  },
+  {
+    "user": "hi",
+    "response": "Hello! How can I assist you with your real estate needs today?"
   }
 ]

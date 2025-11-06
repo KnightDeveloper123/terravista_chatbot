@@ -26,5 +26,17 @@
   {
     "user": "how much units in oneworld",
     "response": "Sorry, I don’t have that information."
+  },
+  {
+    "user": "hi",
+    "response": "Hello! How can I help you with your real estate needs today?"
+  },
+  {
+    "user": "i want to buy flat suggest me some",
+    "response": "We offer 2-"
+  },
+  {
+    "user": "what?",
+    "response": "Could you please clarify what you're asking about? Are you looking for suggestions for flats, or something else?"
   }
 ]
