@@ -283,19 +283,22 @@ class SocietyFilteredRetriever:
 
 
 # ✅ Modified history fetcher (sync call allowed inside async)
-def fetch_chat_history(title_id: Optional[str]):
+def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you want
     if not title_id:
         return []
 
     try:
-        url = f"http://216.10.251.154:7500/chatbot/getAllChats?title_id={title_id}"
+        url = f"http://15.206.70.213:7601/chatbot/getAllChats?title_id={title_id}"
         res = requests.get(url, timeout=5)
         res.raise_for_status()
         data = res.json()
 
-        history_entries = []
+        chat_pairs = []
+        temp_user_msg = None
+
         if "data" in data:
-            for entry in data["data"]:
+            for entry in data["data"]: 
+                print(entry)
                 sender = entry.get("sender", "").strip().lower()
                 message = entry.get("message", "").strip()
 
@@ -303,14 +306,24 @@ def fetch_chat_history(title_id: Optional[str]):
                     continue
 
                 if sender == "user":
-                    history_entries.append({"user": message, "response": ""})
-                else: 
-                    history_entries.append({"user": "", "response": message})
+                    # ✅ Start new pair if a user message arrives
+                    temp_user_msg = message
 
-        return history_entries[-4:]  # ✅ keep only last 4
+                elif sender == "bot":
+                    # ✅ If bot replies, pair with last user message
+                    chat_pairs.append({
+                        "user": temp_user_msg or "",
+                        "response": message
+                    })
+                    temp_user_msg = None
+
+        # ✅ Return last N conversation turns (not only one)
+        return chat_pairs[-max_pairs:]
+
     except Exception as e:
         print(f"[history] fetch failed: {e}")
         return []
+
 
 
 def select_relevant_history(
@@ -412,6 +425,16 @@ def save_context_file(history: List[Dict[str, str]]):
         json.dump(trimmed, f, indent=2)
 
 # ==================================================================================
+# removing the context when new chat start 
+LAST_TITLE_ID = None
+def reset_context():
+    global LAST_TITLE_ID
+    LAST_TITLE_ID = None
+    if os.path.exists(CONTEXT_FILE):
+        with open(CONTEXT_FILE, "w", encoding="utf-8") as f:
+            f.write("[]")
+    SESSION_STATE.clear()
+    print("✅ Context reset due to new title_id")
 
 # ========================================
 # Prompt and LLM
@@ -459,7 +482,13 @@ async def ask_chat(request: Request):
     if request.method == "POST":
         form = await request.form()
         query = form.get("query")
-        title_id = form.get("title_id")  # ✅ extract title ID
+        title_id = form.get("title_id")  # ✅ extract title ID 
+        
+        global LAST_TITLE_ID
+        if title_id and title_id != LAST_TITLE_ID:
+            reset_context()
+            LAST_TITLE_ID = title_id
+
     else:
         query = request.query_params.get("query")
         title_id = request.query_params.get("title_id")
@@ -484,7 +513,7 @@ async def ask_chat(request: Request):
     if intent:
         if intent["type"] == "brochure":
             path = intent["content"]
-            response_text = f"Here is the brochure: {os.path.basename(path)}" if path else "Sorry, I couldn't find a brochure at the moment."
+            response_text = f"{os.path.basename(path)}" if path else "Sorry, I couldn't find a brochure at the moment."
         elif intent["type"] == "schedule":
             response_text = f"Great! You can schedule a call with us here: {intent['content']}"
         async def token_response():
@@ -544,9 +573,26 @@ async def ask_chat(request: Request):
     # Update context store for future requests
     if selected_hist is None:
         selected_hist = []
-    new_turn = {"user": query, "response": "PENDING"}
+    new_turn = {"user": query, "response": ""}
     selected_hist.append(new_turn)
     save_context_file(selected_hist)
+
+    async def token_response():
+        full_answer = ""
+        inputs = {
+            "active_society": active_society or "None",
+            "chat_history": chat_history_text,
+            "context": context,
+            "question": query,
+        }
+        async for chunk in chain.astream(inputs):
+            full_answer += chunk
+            yield chunk
+
+        # ✅ Update the last turn with actual response
+        selected_hist[-1]["response"] = full_answer
+        save_context_file(selected_hist)
+
 
 
     chat_history_text = format_history_for_prompt(selected_hist)

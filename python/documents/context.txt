@@ -1,18 +1,6 @@
 [
   {
-    "user": "tell me oneworld properties",
-    "response": "PENDING"
-  },
-  {
-    "user": "give me all developers from pune",
-    "response": "PENDING"
-  },
-  {
-    "user": "price?",
-    "response": "PENDING"
-  },
-  {
-    "user": "broucher",
+    "user": "how much units in oneworld",
     "response": "PENDING"
   }
 ]
