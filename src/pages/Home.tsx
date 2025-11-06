@@ -152,8 +152,8 @@ const Home: React.FC = () => {
                     url: `/ai/get-info`,
                     method: "POST",
                     body: {
-                        "query": value,
-                        "title_id": titleId
+                        query: value,
+                        title_id: titleId
                     },
                 });
             }
