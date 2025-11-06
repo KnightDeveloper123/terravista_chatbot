@@ -1,0 +1,18 @@
+[
+  {
+    "user": "tell me oneworld properties",
+    "response": "PENDING"
+  },
+  {
+    "user": "give me all developers from pune",
+    "response": "PENDING"
+  },
+  {
+    "user": "price?",
+    "response": "PENDING"
+  },
+  {
+    "user": "broucher",
+    "response": "PENDING"
+  }
+]

@@ -25,4 +25,8 @@ dist-ssr
 
 #python ignores 
 python/models/all-MiniLM-L6-v2 
-python/models/LFM2-300M
+python/models/LFM2-300M 
+python/chat 
+python/history.py 
+python/main.py 
+python/research
