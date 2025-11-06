@@ -35,9 +35,11 @@ router.get("/get-info", async (req, res) => {
 
 router.post("/get-info", async (req, res) => {
     try {
-        const { query, title_id } = req.body;
-        if (!query) {
-            return res.status(400).json({ error: "Query field is required" });
+        const { title_id } = req.query;
+        console.log(title_id);
+
+        if (!title_id) {
+            return res.status(400).json({ error: "title id field is required" });
         }
 
         const pythonApiUrl = process.env.PYTHON_BOT_URL;
@@ -46,7 +48,7 @@ router.post("/get-info", async (req, res) => {
         const response = await fetch(`${pythonApiUrl}/stream_info`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ query, title_id })
+            body: JSON.stringify({ title_id })
         });
 
         if (!response.ok) {
