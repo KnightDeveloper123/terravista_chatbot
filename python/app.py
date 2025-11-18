@@ -316,7 +316,7 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
         return []
 
     try:
-        url = f"http://13.204.247.180:7601/chatbot/getAllChats?title_id={title_id}"
+        url = f"http://3.6.203.180:7601/chatbot/getAllChats?title_id={title_id}"
         res = requests.get(url, timeout=5)
         res.raise_for_status()
         data = res.json()
@@ -738,7 +738,7 @@ def create_llm():
 
     llm = Llama( 
         model_path='models/qwen2.5-3b-instruct-q4_k_m.gguf',
-        # model_path='models\Llama-3.2-3B.Q4_K_M.gguf',
+        # model_path='models/qwen2.5-1.5b-instruct-q4_k_m.gguf',
         n_ctx=2048,
         n_threads=8,
         n_batch=1024 , 
