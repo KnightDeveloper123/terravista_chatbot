@@ -60,7 +60,7 @@ def embeddings_exist() -> bool:
         os.path.exists(os.path.join(EMB_PATH, "index.faiss"))
         and os.path.exists(os.path.join(EMB_PATH, "index.pkl"))
         and os.path.exists(META_FILE)
-    )
+    )           
 
 def save_vectorstore(vectorstore: FAISS, timestamp: float) -> None:
     os.makedirs(EMB_PATH, exist_ok=True)
@@ -758,7 +758,7 @@ parser = StrOutputParser()
 # ========================================
 app = FastAPI(title="Real Estate Chatbot")
 
-@app.api_route("/stream_info", methods=["GET", "POST"])
+@app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
 
@@ -773,17 +773,12 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         if title_id and title_id != LAST_TITLE_ID:
             reset_context()
             LAST_TITLE_ID = title_id 
-            
-    else:
-        query = request.query_params.get("query")
-        title_id = request.query_params.get("title_id")
+    
 
     session_id = get_session_id(request)
 
     if not query or not query.strip():
-        return JSONResponse({
-            "answer": ""
-        })
+        return "Please enter a query."
         
     # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
