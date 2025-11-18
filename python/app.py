@@ -316,7 +316,7 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
         return []
 
     try:
-        url = f"http://15.206.70.213:7601/chatbot/getAllChats?title_id={title_id}"
+        url = f"http://13.204.247.180:7601/chatbot/getAllChats?title_id={title_id}"
         res = requests.get(url, timeout=5)
         res.raise_for_status()
         data = res.json()
@@ -736,12 +736,12 @@ def detect_greeting(text: str):
 #=========================================================
 def create_llm():
 
-    llm = Llama(
+    llm = Llama( 
         model_path='models/qwen2.5-3b-instruct-q4_k_m.gguf',
         # model_path='models\Llama-3.2-3B.Q4_K_M.gguf',
         n_ctx=2048,
-        n_threads=4,
-        n_batch=512 , 
+        n_threads=8,
+        n_batch=1024 , 
         verbose=False
     )
     return llm
@@ -749,7 +749,8 @@ def create_llm():
 embeddings = create_embeddings()
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
-llm = create_llm()
+global_llm  = create_llm() 
+
 parser = StrOutputParser()
 
 # ========================================
@@ -790,7 +791,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         async def greeting_stream():
             for ch in greeting_check["response"]:
                 yield ch
-                await asyncio.sleep(0.005)
+                await asyncio.sleep(0.05)
         return StreamingResponse(greeting_stream(), media_type="text/plain; charset=utf-8")
 
     if not greeting_check["is_greeting"] and greeting_check["response"] is None:
@@ -830,7 +831,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     ranked_docs = rerank.invoke({"docs": docs, "question": query})
     context = format_docs(ranked_docs) 
     
- 
+    if len(context) > 2000:
+        context = context[:2000]
         
 
     if not context.strip():
@@ -879,7 +881,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     new_turn = {"user": query, "response": ""}
     selected_hist.append(new_turn)
-    chat_history_text = format_history_for_prompt(selected_hist)
+    chat_history_text = format_history_for_prompt(selected_hist) 
+    if len(chat_history_text)> 800: 
+        chat_history_text = chat_history_text[-800:]
     final_context_to_file = (
     f"User Query: {query}\n\n"
     f"Knowledge Used:\n{context}\n"
@@ -891,7 +895,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
  
 
     # 🧩 Clean system message for DeepSeek model
-    llm = create_llm()
+    llm = global_llm
 
     system_prompt = (
     "You are Arya — a warm, polite, and expert real-estate assistant. "
