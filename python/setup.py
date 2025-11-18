@@ -18,7 +18,7 @@ print("✔ successfully Download the senetence Transformer model............")
 LLM_model = hf_hub_download(
     repo_id='Qwen/Qwen2.5-3B-Instruct-GGUF'  ,  
     filename='qwen2.5-3b-instruct-q4_k_m.gguf' , 
-    local_dir= './models'
+    local_dir= '/root/github/chatbot_models'
     
 ) 
 
