@@ -959,7 +959,7 @@ User Query:
             repeat_penalty=1.05,
             stream=True,
             presence_penalty=0.3,
-            stop=["<|end|>", "<|user|>", "<|system|>", "\n\n\n"],
+            stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
         ):
             chunk = token["choices"][0].get("text", "")
             if not chunk.strip():
@@ -1009,6 +1009,7 @@ User Query:
             yield cleaned_segment + " "
             response_text += cleaned_segment + " "
 
+        return 
         end_time = time.time()
         print("\n\n=====================")
         print("✅ Final Response:") 
