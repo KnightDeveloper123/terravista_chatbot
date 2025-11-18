@@ -737,7 +737,7 @@ def detect_greeting(text: str):
 def create_llm():
 
     llm = Llama(
-        model_path='models\qwen2.5-3b-instruct-q4_k_m.gguf',
+        model_path='models/qwen2.5-3b-instruct-q4_k_m.gguf',
         # model_path='models\Llama-3.2-3B.Q4_K_M.gguf',
         n_ctx=2048,
         n_threads=4,
