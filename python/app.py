@@ -5,13 +5,11 @@ import warnings
 from pathlib import Path
 from typing import Optional, List, Dict
 from collections import Counter, defaultdict
-
 import numpy as np
 from dotenv import load_dotenv
-
-from fastapi import FastAPI, Request
-from fastapi.responses import StreamingResponse
-from fastapi.responses import JSONResponse
+from fastapi import FastAPI, Request , Body
+from fastapi.responses import StreamingResponse , JSONResponse
+import sys, time
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
@@ -22,8 +20,11 @@ from langchain_core.runnables import RunnableLambda
 from langchain_core.output_parsers import StrOutputParser
 import requests
 from symspellpy import SymSpell
+# from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
-
+from difflib import SequenceMatcher
+from llama_cpp import Llama
+import asyncio 
 warnings.filterwarnings("ignore", category=FutureWarning)
 load_dotenv()
 
@@ -37,9 +38,16 @@ DATA_FILE = "documents/data1.txt"
 OUTPUT_DICT = "dictionary.txt"
 CONTEXT_FILE = "documents/context.txt"
 MAX_CONTEXT_TURNS = 4
-
+REFERENCE_CLEANUP="documents/cleanup_reference.txt"
 
 SESSION_STATE = defaultdict(dict)  # per-session state: {"active_society": str}
+
+
+
+EMB_PATH = "Embeddings"
+EMB_FILE = os.path.join(EMB_PATH, "embeddings.npy")   # numeric embeddings
+TEXT_FILE = os.path.join(EMB_PATH, "texts.json")      # original document text
+META_FILE = os.path.join(EMB_PATH, "meta.json")       # timestamp + info
 
 # ========================================
 # Utilities
@@ -94,7 +102,7 @@ def load_documents(file_path: str = DATA_FILE):
     loader = TextLoader(file_path, encoding="utf-8")
     documents = loader.load()
 
-    splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=150)
+    splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=150)
     chunks = splitter.split_documents(documents)
 
     last_name = None
@@ -115,6 +123,8 @@ def create_embeddings():
         model_kwargs={"device": "cpu"},
         encode_kwargs={"normalize_embeddings": True},
     )
+    
+
 
 def build_vectorstore() -> FAISS:
     print("🔨 Rebuilding embeddings & index...")
@@ -140,7 +150,16 @@ def get_vectorstore_and_retriever():
     vs = build_vectorstore()
     return vs, vs.as_retriever(search_kwargs={"k": 12})
 
+# def create_multiquery_retriever(vectorstore, llm):
+    
+#     return MultiQueryRetriever.from_llm(
+#         retriever=vectorstore.as_retriever(search_kwargs={"k": 8}),
+#         llm=llm  # you already have an LLM function
+#     )
+
+
 vectorstore, base_retriever = get_vectorstore_and_retriever()
+
 
 def collect_known_societies(vs: FAISS) -> set[str]:
     names = set()
@@ -156,27 +175,36 @@ KNOWN_SOCIETIES = collect_known_societies(vectorstore)
 # ========================================
 # Reranker
 # ========================================
-def create_reranker(embeddings, top_k: int = 3) -> RunnableLambda:
+def create_reranker(embeddings, top_k: int = 3, threshold: float = 0.3) -> RunnableLambda:
     def _rerank(inputs):
         docs = inputs["docs"]
         query = inputs["question"]
         if not docs:
             return []
 
-        q_vec = embeddings.embed_query(query)
+        q_vec = np.array(embeddings.embed_query(query))
         d_texts = [d.page_content for d in docs]
-        d_vecs = embeddings.embed_documents(d_texts)
+        d_vecs = [np.array(v) for v in embeddings.embed_documents(d_texts)]
 
         def cos(a, b):
-            a = np.array(a)
-            b = np.array(b)
             denom = (np.linalg.norm(a) * np.linalg.norm(b)) + 1e-8
             return float(np.dot(a, b) / denom)
 
-        scores = [cos(q_vec, dv) for dv in d_vecs]
-        ranked = [doc for _, doc in sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)]
-        return ranked[:top_k]
+        # Compute scores and pair with docs
+        scored_docs = []
+        for doc, d_vec in zip(docs, d_vecs):
+            score = cos(q_vec, d_vec)
+            if score >= threshold:
+                scored_docs.append((doc, score))
+
+        # Sort by score descending
+        scored_docs.sort(key=lambda x: x[1], reverse=True)
+
+        # Return only docs (no scores), up to top_k
+        return [doc for doc, _ in scored_docs[:top_k]]
+
     return RunnableLambda(_rerank)
+
 
 # ========================================
 # Dictionary and spell correction
@@ -324,6 +352,42 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
         print(f"[history] fetch failed: {e}")
         return []
 
+def fetch_chat_history_local(title_id): 
+    try:
+        url = f"http://localhost:4001/history"
+        res = requests.get(url, timeout=5)
+        res.raise_for_status()
+        data = res.json()
+
+        chat_pairs = []
+        temp_user_msg = None
+
+        if "data" in data:
+            for entry in data["data"]: 
+                sender = entry.get("sender", "").strip().lower()
+                message = entry.get("message", "").strip()
+
+                if not message:
+                    continue
+
+                if sender == "user":
+                    # ✅ Start new pair if a user message arrives
+                    temp_user_msg = message
+
+                elif sender == "bot":
+                    # ✅ If bot replies, pair with last user message
+                    chat_pairs.append({
+                        "user": temp_user_msg or "",
+                        "response": message
+                    })
+                    temp_user_msg = None
+
+        # ✅ Return last N conversation turns (not only one)
+        return chat_pairs[-6:]
+
+    except Exception as e:
+        print(f"[history] fetch failed: {e}")
+        return []
 
 
 def select_relevant_history(
@@ -412,17 +476,22 @@ def format_history_for_prompt(hist: List[Dict[str, str]]) -> str:
 def load_context_file():
     if not os.path.exists(CONTEXT_FILE):
         return []
-    with open(CONTEXT_FILE, "r", encoding="utf-8") as f:
-        try:
+    try:
+        with open(CONTEXT_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
             return data if isinstance(data, list) else []
-        except:
-            return []
+    except:
+        return []
 
-def save_context_file(history: List[Dict[str, str]]):
-    trimmed = history[-MAX_CONTEXT_TURNS:]  # Keep last 4
+def append_context_to_file(new_pair: dict):
+    context = load_context_file()
+    context.append(new_pair)
+    if len(context) > 2:
+        context = context[-2:]
+        # print(context)
     with open(CONTEXT_FILE, "w", encoding="utf-8") as f:
-        json.dump(trimmed, f, indent=2)
+        json.dump(context, f, indent=2) 
+
 
 # ==================================================================================
 # removing the context when new chat start 
@@ -460,16 +529,225 @@ def create_prompt():
     ])
 
 
+import re
+
+def build_reference_set(text: str):
+    """
+    Extracts all unique numeric patterns and key property terms 
+    from the given text for reference correction.
+    """
+    numbers = re.findall(r'\b\d+(?:[.,]\d+)?\b', text)
+    words = re.findall(r'\b[A-Za-z]{3,}\b', text)
+    reference_set = set(numbers + words)
+    return reference_set
+
+def smart_fix_spaces_dynamic(text: str, reference_words: set = None) -> str:
+    # --- 1️⃣ Fix numeric spacing (numbers, decimals, ranges, times) ---
+    text = re.sub(r'(?<=\d)\s+(?=\d)', '', text)           # 1 0 → 10
+    text = re.sub(r'(\d)\s*:\s*(\d)', r'\1:\2', text)      # 10 : 90 → 10:90
+    text = re.sub(r'(\d)\s*\.\s*(\d)', r'\1.\2', text)     # ₹1 . 5 → ₹1.5
+    text = re.sub(r'(\d)\s*-\s*(\d)', r'\1–\2', text)      # 850 - 1100 → 850–1100 (en dash)
+    text = re.sub(r'([₹])\s*([0-9])', r'\1\2', text)       # ₹ 95 → ₹95
+    text = re.sub(r'(\d)(\s*)(lakhs|crores)', r'\1 \3', text, flags=re.IGNORECASE)
+
+    # --- 2️⃣ Fix common real-estate patterns ---
+    text = re.sub(r'(\d)\s*B\s*H\s*K', r'\1BHK', text, flags=re.IGNORECASE)
+    text = re.sub(r'(\d)\s*BHK', r'\1BHK', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bQ\s*([1-4])\s*([0-9]{4})\b', r'Q\1 \2', text)  # Q 42026 → Q4 2026
+    text = re.sub(r'\b(\d+)\s*(sq\s*ft|SQ\s*FT|Sq\s*Ft)\b', r'\1 sq ft', text, flags=re.IGNORECASE)
+
+    # --- 3️⃣ Fix names like "Mr. Ak ash" ---
+    text = re.sub(r'\b(Mr|Ms|Mrs|Dr)\.\s+([A-Z])\s+([a-z]+)', r'\1. \2\3', text)
+
+    # --- 4️⃣ Fix URL / domain spacing ---
+    text = re.sub(r'https\s*:\s*/\s*/\s*', 'https://', text)
+    text = re.sub(r'www\s*\.\s*', 'www.', text)
+    text = re.sub(r'\s*\.\s*com', '.com', text)
+    text = re.sub(r'\s*\.\s*in', '.in', text)
+    text = re.sub(r'\s*\.\s*org', '.org', text)
+    text = re.sub(r'\s*\.\s*net', '.net', text)
+
+    # --- 5️⃣ Context-based joining (reliable only for long words) ---
+    if reference_words:
+        for word in sorted(reference_words, key=len, reverse=True):
+            if len(word) >= 4:
+                pattern = r'\b' + r'\s*'.join(list(word)) + r'\b'
+                text = re.sub(pattern, word, text, flags=re.IGNORECASE)
+
+    # --- 6️⃣ General punctuation & space cleanup ---
+    text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # no space before punctuation
+    text = re.sub(r'([.,!?;:])([A-Za-z0-9])', r'\1 \2', text)  # ensure space after punctuation
+    text = re.sub(r'\s{2,}', ' ', text)  # collapse multiple spaces
+    text = text.strip()
+
+    return text
+
+
+# ========================================================
+# High hello structured 
+
+
+def normalize_text(text: str) -> str:
+    """Normalize text for better fuzzy matching"""
+    text = text.lower().strip()
+    text = re.sub(r'(.)\1{2,}', r'\1', text)  # hiiii -> hi
+    text = re.sub(r'[^a-z\s]', '', text)      # remove punctuation
+    return text
+
+def similarity(a: str, b: str) -> float:
+    """Compute similarity ratio"""
+    return SequenceMatcher(None, a, b).ratio()
+
+def detect_greeting(text: str):
+    """Return greeting type and whether it's a standalone greeting"""
+    responses_map = {
+        "hello": "Hello! How i can Help you?",
+        "hi": "Hi there! How i can help you?",
+        "hey": "Hey! I'm here",
+        "greetings": "Greetings! How may I be of service?",
+        "good morning": "Good morning! How can I help you today?",
+        "good afternoon": "Good afternoon! What would you like to know?",
+        "good evening": "Good evening! How may I assist you?",
+        "good day": "Good day to you! How can I help?",
+        "what's up": "Not much, just ready to help you! What do you need?",
+        "how are you": "I'm doing well, thank you! How can I help you today?",
+        "morning": "Good morning! How can I assist you today?",
+        "afternoon": "Good afternoon! How may I help you?",
+        "evening": "Good evening! What can I do for you?",
+        "good night": "Good night! Is there anything I can help you with before you go?",
+        "howdy": "Howdy! What can I help you with today?",
+        "yo": "Hello! How may I assist you?",
+        "hi there": "Hi there! How can I help you?",
+        "hello there": "Hello there! What would you like to know?",
+        "good to see you": "Good to see you too! How can I assist you today?",
+        "nice to see you": "Nice to see you as well! What can I help you with?",
+        "long time no see": "Hello! It's good to connect with you again. How may I help?",
+        "what's new": "Nothing much here! How can I assist you today?",
+        "how's it going": "Things are going well! How may I help you?",
+        "how have you been": "I've been doing great, thank you for asking! How can I assist you?",
+        "hope you're well": "Thank you for asking! I'm here and ready to help. What do you need?",
+        "good to meet you": "Good to meet you too! How may I be of service?",
+        "pleased to meet you": "Pleased to meet you as well! What can I help you with today?",
+        "welcome": "Thank you! How can I assist you?",
+        "hey there": "Hey there! I'm ready to help. What do you need?",
+        "what's happening": "Not much on my end! How can I help you today?",
+        "namaste": "Namaste! How may I be of service?",
+       "thanks": "You're welcome! Happy to help! 😊",
+    "thank you": "Thank you! I'm glad I could assist you!",
+    "thank you so much": "You're very welcome! I'm here whenever you need me! 🌟",
+    "thanks a lot": "My pleasure! Don't hesitate to ask if you need anything else!",
+    "thanks a bunch": "Anytime! I'm always happy to help! 😄",
+    "much appreciated": "Glad to be of service! What else can I do for you?",
+    "appreciate it": "You're welcome! That's what I'm here for!",
+    "appreciate your help": "It's my pleasure to assist you! 🤗",
+    "nice": "Awesome! Is there anything specific you'd like to know?",
+    "that's nice": "Great! How can I make your day better?",
+    "very nice": "Thank you! I'm here to provide the best help possible! 🌈",
+    "so nice": "You're so kind! What can I assist you with today?",
+    "nice one": "Thanks! Ready for whatever you need next! 👍",
+    "good job": "Thank you! I'm here to help you succeed! 🚀",
+    "well done": "Much appreciated! How else can I assist you?",
+    "excellent": "Thank you! I'm dedicated to giving you excellent service! ⭐",
+    "awesome": "You're awesome too! What can I help you with?",
+    "great": "Great to hear! How may I continue assisting you?",
+    "fantastic": "Fantastic! I'm here to make your experience better! 😎",
+    "amazing": "You're amazing too! What would you like to know?",
+    "perfect": "Perfect! I'm here to provide perfect assistance! 💫",
+    "wonderful": "Wonderful! How can I help make your day even better?",
+    "brilliant": "Thank you! I'm here to provide brilliant support! ✨",
+    "outstanding": "Much appreciated! I'm committed to outstanding service! 🌟",
+    "impressive": "Thank you! I'm impressed by your kindness! 😊",
+    "super": "Super! I'm here to supercharge your experience! ⚡",
+    "cool": "Cool! What can I help you explore today?",
+    "sweet": "Sweet! Ready to assist you with anything! 🍭",
+    "lovely": "Lovely to interact with you too! How can I help?",
+    "beautiful": "You're beautiful too! What can I do for you? 🌸",
+    "marvelous": "Marvelous! I'm here to provide marvelous support!",
+    "splendid": "Splendid! How may I be of service to you?",
+    "terrific": "Terrific! I'm here to give you terrific assistance! 🎯",
+    "fabulous": "Fabulous! What fabulous thing can I help you with? 💖",
+    "stellar": "Stellar! I'm here to provide stellar support! 🌠",
+    "phenomenal": "Phenomenal! How can I phenomenally assist you?",
+    "remarkable": "Remarkable! I'm here to provide remarkable help!",
+    "exceptional": "Exceptional! What exceptional service can I provide? 🏆",
+    "incredible": "Incredible! I'm here to incredibly assist you!",
+    "extraordinary": "Extraordinary! How can I extraordinarily help you?",
+    "magnificent": "Magnificent! I'm here to provide magnificent support! 👑",
+    "many thanks": "Many welcomes! I'm here for all your needs!",
+    "thanks a million": "A million welcomes! Always here to help! 💫",
+    "much obliged": "The pleasure is mine! How else can I assist?",
+    "deeply grateful": "I'm deeply happy to help! What's next?",
+    "eternally grateful": "I'm eternally here for you! How can I help?",
+    "highly appreciated": "Highly glad to assist! What do you need? 🌟", 
+    "sounds good": "Thanks for using Our platform.",
+    # Quick appreciative responses
+    "thx": "You're welcome! 😊",
+    "ty": "Anytime! What's up?",
+    "tysm": "My pleasure! How can I help? 🌈",
+    "tyvm": "You're very welcome! Ready for more!",
+    "nice job": "Thank you! Happy to be of service! 👍",
+    "good stuff": "Thanks! I'm here with more good stuff!",
+    "well played": "Thank you! Ready for the next round! 🎮",
+    
+    # Appreciative with enthusiasm
+    "you're the best": "No, you're the best! How can I help? 🌟",
+    "you rock": "You rock too! What can I do for you? 🎸",
+    "you're amazing": "You're more amazing! How may I assist?",
+    "you're awesome": "Coming from you, that means a lot! 😄",
+    "you're great": "You're greater! What can I help with?",
+    "you're wonderful": "You're wonderful too! How can I serve you?",
+    
+    # Grateful responses
+    "grateful": "I'm grateful to help you! What's next?",
+    "so grateful": "I'm so happy to assist! How can I help?",
+    "very grateful": "I'm very glad to be of service! 🌟",
+    "extremely grateful": "I'm extremely happy to help you!",
+    
+    # Bless you responses
+    "bless you": "Thank you! Bless you too! How can I help?",
+    "god bless you": "Thank you! How may I assist you today?",
+    "bless your heart": "You're so kind! What can I do for you? 💖"
+    }
+
+    normalized = normalize_text(text)
+    best_match = None
+    best_score = 0.0
+
+    for key_greeting, response_message in responses_map.items():
+        score = similarity(normalized, key_greeting)
+        if score > best_score:
+            best_score = score
+            best_match = (key_greeting, response_message)
+
+    # Detect if greeting word exists in start of message
+    greeting_found = any(key in normalized.split()[:3] for key in responses_map)
+
+    # 1️⃣ If the message is *only* a greeting → respond immediately
+    if len(normalized.split()) <= 3 and (best_score >= 0.6 or greeting_found):
+        return {"is_greeting": True, "response": best_match[1]}
+
+    # 2️⃣ If greeting present + other intent words → skip greeting
+    if greeting_found or best_score >= 0.6:
+        return {"is_greeting": False, "response": None}
+
+    # 3️⃣ Not a greeting at all
+    return {"is_greeting": False, "response": None}
+ 
+#=========================================================
 def create_llm():
-    return ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0.1,
-        max_tokens=512,
-        streaming=True,
+
+    llm = Llama(
+        model_path='models\qwen2.5-3b-instruct-q4_k_m.gguf',
+        # model_path='models\Llama-3.2-3B.Q4_K_M.gguf',
+        n_ctx=2048,
+        n_threads=4,
+        n_batch=512 , 
+        verbose=False
     )
+    return llm
 
 embeddings = create_embeddings()
-rerank = create_reranker(embeddings, top_k=3)
+rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
 llm = create_llm()
 parser = StrOutputParser()
@@ -480,51 +758,64 @@ parser = StrOutputParser()
 app = FastAPI(title="Real Estate Chatbot")
 
 @app.api_route("/stream_info", methods=["GET", "POST"])
-async def ask_chat(request: Request):
+async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
 
     title_id = None
     query = None
 
+    # If POST → get title_id + query from body
     if request.method == "POST":
-        form = await request.form()
-        title_id = form.get("title_id")  # ✅ Only title_id allowed in POST
+        title_id = (body or {}).get("title_id")
+        query = (body or {}).get("query")
 
         if title_id and title_id != LAST_TITLE_ID:
             reset_context()
-            LAST_TITLE_ID = title_id
-
-    else:  # GET request
-        query = request.query_params.get("query")  # ✅ Only query allowed in GET
-        title_id = request.query_params.get("title_id")  # Optional for GET
+            LAST_TITLE_ID = title_id 
+            
+    else:
+        query = request.query_params.get("query")
+        title_id = request.query_params.get("title_id")
 
     session_id = get_session_id(request)
 
     if not query or not query.strip():
         return JSONResponse({
-            "answer": "Title ID stored. Please send a GET request with a query."
+            "answer": ""
         })
+        
+    # ✅ INSERT GREETING HANDLER HERE
+    greeting_check = detect_greeting(query)
+    if greeting_check["is_greeting"] and greeting_check["response"]:
+        async def greeting_stream():
+            for ch in greeting_check["response"]:
+                yield ch
+                await asyncio.sleep(0.005)
+        return StreamingResponse(greeting_stream(), media_type="text/plain; charset=utf-8")
 
+    if not greeting_check["is_greeting"] and greeting_check["response"] is None:
+        for key in ["hi", "hello", "hey", "good morning", "good afternoon", "good evening", "namaste", "greetings"]:
+            if query.lower().startswith(key):
+                query = query[len(key):].strip(",.! ").strip()
+                break
 
-    # Build spelling dictionary if needed
-    if not os.path.exists(OUTPUT_DICT):
-        build_dictionary()
-        sym_spell.load_dictionary(OUTPUT_DICT, term_index=0, count_index=1)
-
-    # Intent short-circuit
+    # Intent handling
     intent = detect_special_intent(query)
     if intent:
         if intent["type"] == "brochure":
-            path = intent["content"]
-            response_text = f"{os.path.basename(path)}" if path else "Sorry, I couldn't find a brochure at the moment."
+            response_text = (
+                f"{os.path.basename(intent['content'])}"
+                if intent["content"]
+                else "Sorry, I couldn't find a brochure right now."
+            )
         elif intent["type"] == "schedule":
-            response_text = f"Great! You can schedule a call with us here: {intent['content']}"
+            response_text = f"Great! You can schedule a call here: {intent['content']}"
         async def token_response():
             for ch in response_text:
                 yield ch
         return StreamingResponse(token_response(), media_type="text/plain")
 
-    # Society state update
+    # Detect society and manage session
     mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
     if mentioned:
         SESSION_STATE[session_id]["active_society"] = mentioned
@@ -533,80 +824,208 @@ async def ask_chat(request: Request):
 
     active_society = SESSION_STATE[session_id].get("active_society")
 
-    # Build a society-filtered retriever
+    # Retrieve relevant context
     retriever = SocietyFilteredRetriever(base_retriever, active_society, k=8)
     docs = retriever.invoke(query)
-
-    # Auto-lock society by majority if none set yet
-    if not active_society:
-        maj = majority_society(docs)
-        if maj:
-            SESSION_STATE[session_id]["active_society"] = maj
-            active_society = maj
-
-    # Rerank and format knowledge
     ranked_docs = rerank.invoke({"docs": docs, "question": query})
-    context = format_docs(ranked_docs)
+    context = format_docs(ranked_docs) 
+    
+ 
+        
 
-    # Fetch and select chat history
-    # 1) Online history retrieval
-    full_history = fetch_chat_history(title_id)
-    print(f"[history] entries fetched: {len(full_history)}")
-    print("=="*30)
-    print(full_history)
-    print("=="*30)
+    if not context.strip():
+        import random
 
-    # 2) Load local context fallback if API fails or history is empty
+        fallback_messages = [
+            "I don't have that information right now.",
+            "Sorry, I couldn't find details about that.",
+            "Hmm, I don't know the answer to that yet.",
+            "It looks like I don't have enough information on this.",
+            "I'm still learning — this one isn't in my knowledge base yet.",
+            "Unfortunately, I don’t have data on that at the moment."
+        ]
+        fallback_response = random.choice(fallback_messages)
+
+        async def fallback_stream():
+            for ch in fallback_response:
+                # Yield each character exactly as is (no cleaning)
+                yield ch
+                await asyncio.sleep(0.005)  # natural delay for streaming effect
+
+        # Explicitly set charset to UTF-8
+        return StreamingResponse(
+            fallback_stream(),
+            media_type="text/plain; charset=utf-8"
+        )
+
+
+    # Load local and external chat history
+    if title_id!=None  and title_id!= 0: 
+        full_history = fetch_chat_history(title_id) 
+    else: 
+        full_history = ""
     local_context = load_context_file()
-
-    combined_history_for_selection = []
-    if full_history:
-        combined_history_for_selection += full_history
-    combined_history_for_selection += local_context
+    combined_history = (full_history or []) + local_context
+    local_context = load_context_file()  # keep as text
 
     selected_hist = select_relevant_history(
         query,
-        combined_history_for_selection,
+        combined_history,
         embeddings,
         k_similar=4,
         last_n=4,
-        max_chars=1800
-    )
-    
-    # Update context store for future requests
-    if selected_hist is None:
-        selected_hist = []
+        max_chars=2000,
+    ) or []
+
     new_turn = {"user": query, "response": ""}
     selected_hist.append(new_turn)
-
-    # ✅ Prepare chat history for prompt (before model call!)
     chat_history_text = format_history_for_prompt(selected_hist)
+    final_context_to_file = (
+    f"User Query: {query}\n\n"
+    f"Knowledge Used:\n{context}\n"
+    f"{'='*60}\n"
+)
+    
+    if  len(context)>10: 
+        append_context_to_file({"user": query, "response": context}) 
+ 
 
-    # ✅ Save pre-response context
-    save_context_file(selected_hist)
+    # 🧩 Clean system message for DeepSeek model
+    llm = create_llm()
 
-    # ✅ Compose and call LLM
-    chain = prompt | llm | parser
+    system_prompt = (
+    "You are Arya — a warm, polite, and expert real-estate assistant. "
+    "Your single source of truth is the section called 'Knowledge'. "
+    "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), "
+    "you must answer using that information directly and confidently. "
+    "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
+    "Do not ask for the project or developer again — use what is provided in Knowledge. "
+    "Only if Knowledge is completely empty should you ask a follow-up. "
+    "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
+    "Avoid generic responses or repeating the user's query. "
+    "Be concise, accurate, and factual."
+)
+    chatml_prompt = f"""
+<|system|>
+{system_prompt}
+<|end|>
+<|user|>
+Active Society: {active_society or "None"}
 
-    async def get_answer():
-        answer = ""
-        inputs = {
-            "active_society": active_society or "None",
-            "chat_history": chat_history_text,
-            "context": context,
-            "question": query,
-        }
-        async for chunk in chain.astream(inputs):
-            answer += chunk
-        return answer
+Chat History:
+{chat_history_text}
 
-    final_answer = await get_answer()
+The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
 
-    # ✅ Update last Q&A in context
-    selected_hist[-1]["response"] = final_answer
-    save_context_file(selected_hist)
+Knowledge:
+{context}
 
-    return JSONResponse({"answer": final_answer})
+User Query:
+{query}
+<|end|>
+<|assistant|>
+""" 
+
+    # print("=✔🌴"*30)
+    # print("Total prompt Length: ", len(chatml_prompt.split())) 
+    # # print("Prompt : \n" , chatml_prompt)
+    # print("=✔🌴"*30)
+
+    ###############################
+    complete_context_reference_set = chat_history_text +"\n" + context
+    reference_words = build_reference_set(complete_context_reference_set)  
+    # print("=✔🌴"*30)
+    # print(reference_words)
+    # print("=✔🌴"*30)
+    ################################
+    # === STREAMING RESPONSE ===
+    async def stream_response():
+        # print("\n\n=====================")
+        # print(f"🧠 User Query: {query}")
+        # print("=====================")
+        # print(f"📘 Context (truncated):\n{context[:400]}...\n")
+
+        response_text = ""
+        prev_chunk = ""
+        word_buffer = []
+        start_time = time.time()
+        print("🎈🎈Start generating response ......")
+        for token in llm(
+            chatml_prompt,
+            max_tokens=400,  # shorter and safer
+            temperature=0.25,
+            top_p=0.85,
+            repeat_penalty=1.05,
+            stream=True,
+            presence_penalty=0.3,
+            stop=["<|end|>", "<|user|>", "<|system|>", "\n\n\n"],
+        ):
+            chunk = token["choices"][0].get("text", "")
+            if not chunk.strip():
+                continue
+
+            # Prevent duplication
+            if chunk.strip() == prev_chunk.strip():
+                continue
+            prev_chunk = chunk
+
+            # Skip unwanted HTML/control tokens
+            if any(tag in chunk for tag in ["<div", "</", "<|user|>", "<|system|>"]):
+                continue
+
+            # Add missing space if needed
+            if response_text and not response_text.endswith((" ", "\n")) and not chunk.startswith((" ", ".", ",", "!", "?")):
+                chunk = " " + chunk
+
+            # Collect into buffer
+            words = chunk.split()
+            word_buffer.extend(words)
+
+            # 🧹 If buffer has 10 or more words, clean and yield
+            if len(word_buffer) >= 10:
+                segment = " ".join(word_buffer)
+                cleaned_segment = smart_fix_spaces_dynamic(segment, reference_words=reference_words)
+
+                print(cleaned_segment, end=" ", flush=True)
+                yield cleaned_segment + " "
+
+                response_text += cleaned_segment + " "
+                word_buffer = []  # reset buffer
+
+            await asyncio.sleep(0)
+
+            # safety cutoff
+            if len(response_text) > 1500:
+                print("\n[🛑 Auto-stop after 1500 chars]\n")
+                break
+
+        # Flush remaining words
+        if word_buffer:
+            segment = " ".join(word_buffer)
+            cleaned_segment = smart_fix_spaces_dynamic(segment, reference_words=reference_words)
+
+            print(cleaned_segment, end=" ", flush=True)
+            yield cleaned_segment + " "
+            response_text += cleaned_segment + " "
+
+        end_time = time.time()
+        print("\n\n=====================")
+        print("✅ Final Response:") 
+        print(f"Total time  required to generate response: {end_time-start_time:.2f}")
+        # print(response_text)
+        # print("=====================\n")
+
+
+
+
+    return StreamingResponse(
+    stream_response(),
+    media_type="text/plain",
+    headers={"Transfer-Encoding": "chunked"}
+)
+
 
 if __name__ == "__main__":
     import uvicorn
