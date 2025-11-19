@@ -962,11 +962,11 @@ User Query:
             stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
         ):
             chunk = token["choices"][0].get("text", "")
-            if not chunk.strip():
+            
+            if chunk.strip() == "":
                 continue
-
             # Prevent duplication
-            if chunk.strip() == prev_chunk.strip():
+            if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
                 continue
             prev_chunk = chunk
 
@@ -1009,13 +1009,15 @@ User Query:
             yield cleaned_segment + " "
             response_text += cleaned_segment + " "
 
-        return 
-        end_time = time.time()
-        print("\n\n=====================")
-        print("✅ Final Response:") 
+        end_time = time.time() 
         print(f"Total time  required to generate response: {end_time-start_time:.2f}")
-        # print(response_text)
-        # print("=====================\n")
+        return 
+        
+        # print("\n\n=====================")
+        # print("✅ Final Response:") 
+        # print(f"Total time  required to generate response: {end_time-start_time:.2f}")
+        # # print(response_text)
+        # # print("=====================\n")
 
 
 
