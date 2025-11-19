@@ -764,17 +764,20 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     title_id = None
     query = None
+    user_id = None
 
     # If POST → get title_id + query from body
     if request.method == "POST":
         title_id = (body or {}).get("title_id")
-        query = (body or {}).get("query")
+        query = (body or {}).get("query") 
+        user_id = (body or {}).get("user_id")
 
         if title_id and title_id != LAST_TITLE_ID:
             reset_context()
             LAST_TITLE_ID = title_id 
     
-
+        if user_id: 
+            print("user_id mil gaya")
     session_id = get_session_id(request)
 
     if not query or not query.strip():
@@ -799,7 +802,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     intent = detect_special_intent(query)
     if intent:
         if intent["type"] == "brochure":
-            response_text = (
+            response_text = ( 
                 f"{os.path.basename(intent['content'])}"
                 if intent["content"]
                 else "Sorry, I couldn't find a brochure right now."
@@ -829,32 +832,11 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if len(context) > 2000:
         context = context[:2000]
         
-
-    if not context.strip():
-        import random
-
-        fallback_messages = [
-            "I don't have that information right now.",
-            "Sorry, I couldn't find details about that.",
-            "Hmm, I don't know the answer to that yet.",
-            "It looks like I don't have enough information on this.",
-            "I'm still learning — this one isn't in my knowledge base yet.",
-            "Unfortunately, I don’t have data on that at the moment."
-        ]
-        fallback_response = random.choice(fallback_messages)
-
-        async def fallback_stream():
-            for ch in fallback_response:
-                # Yield each character exactly as is (no cleaning)
-                yield ch
-                await asyncio.sleep(0.005)  # natural delay for streaming effect
-
-        # Explicitly set charset to UTF-8
-        return StreamingResponse(
-            fallback_stream(),
-            media_type="text/plain; charset=utf-8"
-        )
-
+    ### Main LLM Call  
+    llm = global_llm 
+    
+    
+    
 
     # Load local and external chat history
     if title_id!=None  and title_id!= 0: 
@@ -885,12 +867,107 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     f"{'='*60}\n"
 )
     
+    
+    if not context.strip():
+        system_prompt = (
+        "You are Arya — a warm, polite, and expert real-estate assistant. "
+        "Give the Correct Response of greetings which are asked"
+        "Your single source of truth is the section called 'Knowledge'. "
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+        "you must answer using that information directly and confidently. "
+        "Do not ask for the project or developer again — use what is provided in Knowledge. "
+        "Don't Use Certainly word in response"
+        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
+        "Avoid generic responses or repeating the user's query. "
+        "Be concise, accurate, and factual."
+    )
+        chatml_prompt = f"""
+    <|system|>
+    {system_prompt}
+    <|end|>
+    <|user|>
+
+    Chat History:
+    {chat_history_text}
+
+    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+    Knowledge:
+    {context}
+
+    User Query:
+    {query}
+    <|end|>
+    <|assistant|>
+    """ 
+        async def stream_response():
+
+
+            response_text = ""
+            prev_chunk = ""
+            word_buffer = []
+            start_time = time.time()
+            print("🎈🎈Start generating response ......")
+            for token in llm(
+                chatml_prompt,
+                max_tokens=200,  # shorter and safer
+                temperature=0.25,
+                top_p=0.85,
+                repeat_penalty=1.05,
+                stream=True,
+                presence_penalty=0.3,
+                stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
+            ):
+                chunk = token["choices"][0].get("text", "")
+                
+                if chunk.strip() == "":
+                    continue
+                # Prevent duplication
+                if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
+                    continue
+                prev_chunk = chunk
+
+                # Skip unwanted HTML/control tokens
+                if any(tag in chunk for tag in ["<div", "</", "<|user|>", "<|system|>"]):
+                    continue
+
+                # Add missing space if needed
+                if response_text and not response_text.endswith((" ", "\n")) and not chunk.startswith((" ", ".", ",", "!", "?")):
+                    chunk = " " + chunk
+
+                # Collect into buffer
+                words = chunk.split()
+                word_buffer.extend(words)
+
+                # 🧹 If buffer has 10 or more words, clean and yield
+                if len(word_buffer) >= 10:
+                    segment = " ".join(word_buffer)
+        
+                    print(segment, end=" ", flush=True)
+                    yield segment + " "
+
+                    response_text += segment + " "
+                    word_buffer = []  # reset buffer
+
+                await asyncio.sleep(0)
+
+                # safety cutoff
+                if len(response_text) > 800:
+                    print("\n[🛑 Auto-stop after 1500 chars]\n")
+                    break 
+        return StreamingResponse(
+            stream_response(),
+            media_type="text/plain",
+            headers={"Transfer-Encoding": "chunked"}
+        )
+                
+        
     if  len(context)>10: 
         append_context_to_file({"user": query, "response": context}) 
  
 
     # 🧩 Clean system message for DeepSeek model
-    llm = global_llm
+    
 
     system_prompt = (
     "You are Arya — a warm, polite, and expert real-estate assistant. "
