@@ -145,25 +145,73 @@ const Home: React.FC = () => {
                 await sendResponse(value, "user");
             }
 
-            const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
+            // const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
 
-            if (titleId) {
-                const res = await request({
-                    url: `/ai/get-info?title_id=${titleId}`,
-                    method: "POST"
+            const query = encodeURIComponent(value);
+            const url = `${import.meta.env.VITE_BACKEND_URL}/ai/get-info?query=${query}&title_id=${currentTitleId}`;
+            const eventSource = new EventSource(url);
+
+            let collected = "";
+
+            setAllChats((prev) => [...prev, { message: "", sender: "bot", title_id: Number(currentTitleId) }]);
+
+            eventSource.onmessage = (e) => {
+                if (!e.data) return;
+
+                if (e.data === "end") {
+                    // streaming done
+                    setAllChats((prev) => {
+                        const updated = [...prev];
+                        const botIndex = updated.findIndex(c => c.sender === "bot" && c.message === "");
+                        if (botIndex !== -1) updated[botIndex].message = collected;
+                        return updated;
+                    });
+                    sendResponse(collected, "bot", currentTitleId);
+                    eventSource.close();
+                    setIsAiThinking(false);
+                    return;
+                }
+
+                // append chunk to collected
+                collected += e.data;
+
+                // Update last bot message live
+                setAllChats((prev) => {
+                    const updated = [...prev];
+                    const lastBotIndex = updated.map(c => c.sender).lastIndexOf("bot");
+                    if (lastBotIndex !== -1) {
+                        updated[lastBotIndex].message = collected;
+                    }
+                    return updated;
                 });
-            }
 
-            if (botRes.success) {
-                const botMessage: ChatMessage = {
-                    message: botRes?.answer ?? "No response received",
-                    sender: "bot",
-                    title_id: Number(currentTitleId)
-                };
-                setAllChats((prev) => [...prev, botMessage]);
-                await sendResponse(botMessage.message, "bot", currentTitleId);
-                await getAllChats(currentTitleId);
-            }
+            };
+
+
+            eventSource.onerror = (err) => {
+                console.error("SSE Error:", err);
+                eventSource.close();
+                setIsAiThinking(false);
+            };
+
+
+            // if (titleId) {
+            //     const res = await request({
+            //         url: `/ai/get-info?title_id=${titleId}`,
+            //         method: "POST"
+            //     });
+            // }
+
+            // if (botRes.success) {
+            //     const botMessage: ChatMessage = {
+            //         message: botRes?.answer ?? "No response received",
+            //         sender: "bot",
+            //         title_id: Number(currentTitleId)
+            //     };
+            //     setAllChats((prev) => [...prev, botMessage]);
+            //     await sendResponse(botMessage.message, "bot", currentTitleId);
+            //     await getAllChats(currentTitleId);
+            // }
         } catch (err) {
             console.error("Error handling chat:", err);
             setAllChats((prev) => [...prev, { message: "I am not able to find", sender: "bot", title_id: Number(titleId) }]);
