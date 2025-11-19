@@ -127,6 +127,9 @@ const Home: React.FC = () => {
         event.preventDefault();
         if (!value.trim()) return;
 
+        let isNewChat = false;
+        // let firstChunk = false;
+
         const message: ChatMessage = { message: value, sender: "user", title_id: Number(titleId) };
         const updatedChats = [...allChats, message];
         setAllChats(updatedChats);
@@ -134,7 +137,9 @@ const Home: React.FC = () => {
         try {
             setIsAiThinking(true);
             let currentTitleId = titleId;
+
             if (!currentTitleId) {
+                isNewChat = true;
                 const newTitleId = await sendNewChat(message);
                 if (newTitleId) {
                     currentTitleId = newTitleId;
@@ -152,46 +157,51 @@ const Home: React.FC = () => {
             const eventSource = new EventSource(url);
 
             let collected = "";
+            console.log('here', isAiThinking);
 
-            setAllChats((prev) => [...prev, { message: "", sender: "bot", title_id: Number(currentTitleId) }]);
+            if (!isNewChat) setAllChats((prev) => [...prev, { message: "", sender: "bot", title_id: Number(currentTitleId) }]);
 
-            eventSource.onmessage = (e) => {
+            eventSource.onmessage = async (e) => {
                 if (!e.data) return;
 
+                // if (!firstChunk && e.data !== "end") {
+                //     firstChunk = true;
+                //     setIsAiThinking(false);
+                // }
+
                 if (e.data === "end") {
-                    // streaming done
                     setAllChats((prev) => {
                         const updated = [...prev];
                         const botIndex = updated.findIndex(c => c.sender === "bot" && c.message === "");
                         if (botIndex !== -1) updated[botIndex].message = collected;
                         return updated;
                     });
-                    sendResponse(collected, "bot", currentTitleId);
-                    eventSource.close();
+
+
+                    await sendResponse(collected, "bot", currentTitleId);
+                    await getAllChats(currentTitleId);
                     setIsAiThinking(false);
+                    eventSource.close();
                     return;
                 }
 
-                // append chunk to collected
                 collected += e.data;
-
-                // Update last bot message live
-                setAllChats((prev) => {
-                    const updated = [...prev];
-                    const lastBotIndex = updated.map(c => c.sender).lastIndexOf("bot");
-                    if (lastBotIndex !== -1) {
-                        updated[lastBotIndex].message = collected;
-                    }
-                    return updated;
-                });
-
+                if (!isNewChat) {
+                    setAllChats((prev) => {
+                        const updated = [...prev];
+                        const lastBotIndex = updated.map(c => c.sender).lastIndexOf("bot");
+                        if (lastBotIndex !== -1) {
+                            updated[lastBotIndex].message = collected;
+                        }
+                        return updated;
+                    });
+                }
             };
-
 
             eventSource.onerror = (err) => {
                 console.error("SSE Error:", err);
-                eventSource.close();
                 setIsAiThinking(false);
+                eventSource.close();
             };
 
 
@@ -214,11 +224,14 @@ const Home: React.FC = () => {
             // }
         } catch (err) {
             console.error("Error handling chat:", err);
+            setIsAiThinking(false);
+
             setAllChats((prev) => [...prev, { message: "I am not able to find", sender: "bot", title_id: Number(titleId) }]);
             showAlert("Error", (err as Error).message || "Something went wrong", "error");
-        } finally {
-            setIsAiThinking(false);
         }
+        // finally {
+        //     setIsAiThinking(false);
+        // }
     }, [allChats, request, sendNewChat, sendResponse, titleId, userId, value, navigate]);
 
     /** Feedback handling */
@@ -407,6 +420,7 @@ const Home: React.FC = () => {
                     </Flex> : <Flex p={4} flexDir={'column'} w={'100%'}>
                         <Flex flex={1} gap={2} h={'100%'} overflow={'auto'} flexDir={'column'} className="scroll-container" ref={chatContainerRef}>
                             {allChats.map((chat, index) => {
+                                if (chat.sender === "bot" && chat.message.trim() === "") return null;
                                 return (
                                     <Flex key={index} flexDir={'column'}>
                                         <Box alignSelf={chat.sender === "user" ? "flex-end" : "flex-start"} bg={chat.sender === "user" ? "#fff" : "#005392"} color={chat.sender === "user" ? "#000" : "white"} borderRadius="20px" p="10px" maxW="60%" my="8px" boxShadow="md">
