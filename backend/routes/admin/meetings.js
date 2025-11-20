@@ -11,8 +11,6 @@ router.post('/scheduleMeeting', async (req, res) => {
             return res.status(400).json({ error: 'user_id and meeting_date are required.' });
         }
 
-        const duration = duration_minutes || 30;
-
         const insertQuery = `INSERT INTO meetings (user_id, meeting_date, description, status) VALUES (?, ?, ?, 'pending')`;
         const meeting = await executeQuery(insertQuery, [user_id, meeting_date, description]);
 
