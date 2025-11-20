@@ -94,35 +94,72 @@ def extract_datetime(text):
                 continue
     return None 
 
+
+def generate_meeting_description(chat_history, max_words=30):
+    """
+    Creates a short 20–30 word meeting description 
+    based on the last few user + assistant messages.
+    """
+    if not chat_history:
+        return "General discussion regarding the property."
+
+    # Take last 3–5 lines of conversation
+    text = " ".join(chat_history[-5:])
+
+    # Basic cleanup
+    text = re.sub(r'\s+', ' ', text).strip()
+
+    # Tokenize into words
+    words = text.split()
+
+    # Limit to ~30 words
+    summary = " ".join(words[:max_words])
+
+    # Fallback
+    if len(summary) < 10:
+        summary = "Discussion regarding project details and user requirements."
+
+    return summary
+
+
 FINAL = False
 
 # === 4. MAIN BOT ===
 class MeetingSchedulerBot:
     def __init__(self):
-        self.user_id = None   # <--- IMPORTANT
+        self.user_id = None
         self.reset_state()
     
     def reset_state(self):
         self.meeting = {'datetime': None, 'duration_minutes': 30, 'purpose': ''}
-        self.awaiting = None  # 'datetime', 'duration', 'purpose'
+        self.awaiting = None
     
-    def respond(self, user_input):
+    def generate_auto_description(self, chat_history):
+        return generate_meeting_description(chat_history, max_words=30)
+    
+    def respond(self, user_input, chat_history=None):
         user_input = user_input.strip()
+
+        # 🔥 VERY IMPORTANT — store chat history
+        self.chat_history = chat_history or []
         
         if self.awaiting == 'datetime':
             dt = extract_datetime(user_input)
             if dt:
                 self.meeting['datetime'] = dt
-                self.awaiting = 'purpose'  # Skip explicit duration step
-                return f"Got it! Meeting on **{dt.strftime('%A, %B %d, %Y at %I:%M %p')}**.\nWhat’s it about?"
+                self.awaiting = 'purpose'
+                return f"Got it! Meeting on **{dt.strftime('%A, %B %d, %Y at %I:%M %p')}**"
             else:
                 return "I couldn't understand the date/time. Try: '28 November', 'Nov 28 at 3 PM', etc."
 
         elif self.awaiting == 'purpose':
-            purpose = user_input
-            duration = 30  # default
 
-            # Detect duration inside the text
+            # Auto-generate description from recent chat
+            purpose = self.generate_auto_description(self.chat_history)
+
+            duration = 30  # default duration
+
+            # Detect duration from user text (if user mentions)
             num_match = re.search(r'(\d+)\s*(?:minute|minutes|hour|hours|min|hr)', user_input, re.IGNORECASE)
             if num_match:
                 num = int(num_match.group(1))
@@ -137,39 +174,28 @@ class MeetingSchedulerBot:
 
             dt = self.meeting['datetime']
 
-            # ❗❗ NEW FIX: Ensure user_id exists
             if self.user_id is None:
                 return "❌ Could not get the user ID. Please login again or pass a valid user_id."
-            # ---------------------------
-            # Format date to: YYYY-MM-DD HH:MM:SS
-            # ---------------------------
+
             formatted_date = dt.strftime("%Y-%m-%d %H:%M:%S")
 
-            # ---------------------------
-            # Build API Payload
-            # ---------------------------
             payload = {
-                "user_id": self.user_id,        # Pass from FastAPI
-                "meeting_date": formatted_date, # 2025-11-26 15:45:00
+                "user_id": self.user_id,
+                "meeting_date": formatted_date,
                 "description": purpose
             }
 
-            print("payload i pass to url") 
-            print(payload) 
-            print("Type of meeting date",type(payload['meeting_date']))
-            # Call your API
+            print("payload sent:", payload)
+
             try:
                 response = requests.post(
                     "http://3.6.203.180:7601/meetings/scheduleMeeting",
                     json=payload
                 )
-                api_status = f"📡 API Status: {response.status_code}" 
-                
+                api_status = f"📡 API Status: {response.status_code}"
             except Exception as e:
-                api_status = f"❌ API Error: {str(e)}" 
-                print(api_status)
+                api_status = f"❌ API Error: {str(e)}"
 
-            # Final summary
             summary = (
                 f"✅ **Meeting Scheduled!**\n"
                 f"📅 {dt.strftime('%A, %B %d, %Y')}\n"
@@ -180,7 +206,6 @@ class MeetingSchedulerBot:
             self.reset_state()
             return summary
 
-        # Start
         if is_meeting_request(user_input):
             self.awaiting = 'datetime'
             return "Sure! Tell me the **date and time** for your meeting (e.g., '28 November at 3 PM')."

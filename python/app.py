@@ -793,7 +793,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     # If we are currently expecting date or purpose → ALWAYS process here
     if scheduler.awaiting in ["datetime", "purpose"]:
-        reply = scheduler.respond(query)
+        reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
         return PlainTextResponse(reply)
 
     # If user STARTS a meeting request
@@ -808,7 +808,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if is_brochure_request(query):
         brochure_path = "http://3.6.203.180:7602/documents/Brochure.pdf"
         return PlainTextResponse(
-            f"Here is your brochure:\n{brochure_path}"
+            f"Here is your brochure: {brochure_path}"
         )
         
     # ✅ INSERT GREETING HANDLER HERE
@@ -887,11 +887,16 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if len(chat_history_text)> 800: 
         chat_history_text = chat_history_text[-800:]
   
-    
-    if not context.strip():
+    last_char = ""  
+    def cleaner(text):
+        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text)
+    if len(context.strip())< 10: 
+        print("no Context")
         system_prompt = (
         "You are Arya — a warm, polite, and expert real-estate assistant. "
-        "Give the Correct Response of greetings which are asked"
+        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
+        "respond with a friendly, short greeting and add ONE polite follow-up question such as "
+        "'How can I help you today?' or 'Would you like details about any project?'. "
         "Your single source of truth is the section called 'Knowledge'. "
         "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
         "you must answer using that information directly and confidently. "
@@ -921,10 +926,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     <|assistant|>
     """ 
         async def stream_response():
-
-
             response_text = ""
             prev_chunk = ""
+            buffer = ""  
             word_buffer = []
             start_time = time.time()
             print("🎈🎈Start generating response ......")
@@ -939,42 +943,30 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
                 stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
             ):
                 chunk = token["choices"][0].get("text", "")
-                
                 if chunk.strip() == "":
+                    continue 
+                
+                if not chunk:
                     continue
+
                 # Prevent duplication
                 if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
-                    continue
-                prev_chunk = chunk
-
-                # Skip unwanted HTML/control tokens
-                if any(tag in chunk for tag in ["<div", "</", "<|user|>", "<|system|>"]):
-                    continue
-
-                # Add missing space if needed
-                if response_text and not response_text.endswith((" ", "\n")) and not chunk.startswith((" ", ".", ",", "!", "?")):
-                    chunk = " " + chunk
-
-                # Collect into buffer
-                words = chunk.split()
-                word_buffer.extend(words)
-
-                # 🧹 If buffer has 10 or more words, clean and yield
-                if len(word_buffer) >= 10:
-                    segment = " ".join(word_buffer)
-        
-                    print(segment, end=" ", flush=True)
-                    yield segment + " "
-
-                    response_text += segment + " "
-                    word_buffer = []  # reset buffer
-
-                await asyncio.sleep(0)
-
-                # safety cutoff
+                    continue  
+                
                 if len(response_text) > 800:
-                    print("\n[🛑 Auto-stop after 1500 chars]\n")
+                    print("\n[🛑 Auto-stop after 800 chars]\n")
                     break 
+                
+                buffer += chunk
+
+            # if chunk ends with space or punctuation → treat buffer as a full word
+            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";")):
+                cleaned = cleaner(buffer)
+                yield cleaned
+                response_text += cleaned
+                buffer = ""  
+
+            await asyncio.sleep(0)
         return StreamingResponse(
             stream_response(),
             media_type="text/plain",
@@ -989,20 +981,18 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     # 🧩 Clean system message for DeepSeek model
     
 
-    system_prompt = (
+    system_prompt = ( 
     "You are Arya — a warm, polite, and expert real-estate assistant. "
-    "Your single source of truth is the section called 'Knowledge'. "
+    "Your single source of truth is the section called 'Knowledge'. " 
     "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
-    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
     "you must answer using that information directly and confidently. "
     "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
     "Do not ask for the project or developer again — use what is provided in Knowledge. "
-    "Only if Knowledge is completely empty should you ask a follow-up. "
-    "Don't Use Certainly, first Conversation in response. "
-    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
-    "Avoid generic responses or repeating the user's query. "
-    "Be concise, accurate, and factual."
-)
+    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
     chatml_prompt = f"""
 <|system|>
 {system_prompt}
@@ -1024,14 +1014,22 @@ User Query:
 <|assistant|>
 """ 
 
+
     complete_context_reference_set = chat_history_text +"\n" + context
     reference_words = build_reference_set(complete_context_reference_set)  
-    async def stream_response():
+    last_char = ""
 
-        response_text = ""
-        prev_chunk = ""
-        word_buffer = []
+    async def stream_response(): 
+        print('if context')
         start_time = time.time()
+        global last_char
+        last_char = ""
+
+        response_text = ""   # full accumulated output
+        buffer = ""          # word reconstruction buffer
+       # word reconstruction buffer
+        prev_chunk = "" 
+        word_buffer = []
         print("🎈🎈Start generating response ......")
         for token in llm(
             chatml_prompt,
@@ -1045,56 +1043,27 @@ User Query:
         ):
             chunk = token["choices"][0].get("text", "")
             
-            if chunk.strip() == "":
-                continue
-            # Prevent duplication
-            if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
-                continue
-            prev_chunk = chunk
-
-            # Skip unwanted HTML/control tokens
-            if any(tag in chunk for tag in ["<div", "</", "<|user|>", "<|system|>"]):
+            if not chunk.strip():
                 continue
 
-            # Add missing space if needed
-            if response_text and not response_text.endswith((" ", "\n")) and not chunk.startswith((" ", ".", ",", "!", "?")):
-                chunk = " " + chunk
+            # accumulate raw chunk first
+            buffer += chunk
 
-            # Collect into buffer
-            words = chunk.split()
-            word_buffer.extend(words)
-
-            # 🧹 If buffer has 10 or more words, clean and yield
-            if len(word_buffer) >= 10:
-                segment = " ".join(word_buffer)
-                cleaned_segment = smart_fix_spaces_dynamic(segment, reference_words=reference_words)
-
-                print(cleaned_segment, end=" ", flush=True)
-                yield cleaned_segment + " "
-
-                response_text += cleaned_segment + " "
-                word_buffer = []  # reset buffer
+            # if chunk ends with space or punctuation → treat buffer as a full word
+            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";")):
+                cleaned = cleaner(buffer)
+                yield cleaned
+                response_text += cleaned
+                buffer = ""  # reset buffer
 
             await asyncio.sleep(0)
 
-            # safety cutoff
-            if len(response_text) > 1500:
-                print("\n[🛑 Auto-stop after 1500 chars]\n")
-                break
-
-        # Flush remaining words
-        if word_buffer:
-            segment = " ".join(word_buffer)
-            cleaned_segment = smart_fix_spaces_dynamic(segment, reference_words=reference_words)
-
-            print(cleaned_segment, end=" ", flush=True)
-            yield cleaned_segment + " "
-            response_text += cleaned_segment + " "
-
-        end_time = time.time() 
-        print(f"Total time  required to generate response: {end_time-start_time:.2f}")
-        return 
-        
+        # flush remaining
+        if buffer:
+            cleaned = cleaner(buffer)
+            yield cleaned
+            response_text += cleaned
+            
     return StreamingResponse(
     stream_response(),
     media_type="text/plain",
