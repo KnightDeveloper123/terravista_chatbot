@@ -8,9 +8,8 @@ from collections import Counter, defaultdict
 import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request , Body
-from fastapi.responses import StreamingResponse , JSONResponse
+from fastapi.responses import StreamingResponse , PlainTextResponse
 import sys, time
-from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
@@ -24,7 +23,9 @@ from symspellpy import SymSpell
 # from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
 from difflib import SequenceMatcher
-from llama_cpp import Llama
+from llama_cpp import Llama 
+from meeting import * 
+from utils import is_brochure_request
 import asyncio 
 warnings.filterwarnings("ignore", category=FutureWarning)
 load_dotenv()
@@ -752,8 +753,11 @@ rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
 global_llm  = create_llm() 
 
-parser = StrOutputParser()
+parser = StrOutputParser() 
 
+
+meeting_bot = MeetingSchedulerBot()
+MEETING_SESSION = {}
 # ========================================
 # FastAPI
 # ========================================
@@ -771,7 +775,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if request.method == "POST":
         title_id = (body or {}).get("title_id")
         query = (body or {}).get("query") 
-        user_id = (body or {}).get("user_id")
+        user_id = (body or {}).get("user_id") 
 
         if title_id and title_id != LAST_TITLE_ID:
             reset_context()
@@ -780,9 +784,32 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         if user_id: 
             print("user_id mil gaya")
     session_id = get_session_id(request)
+    # --- MEETING INTENT HANDLING ---
+    if session_id not in MEETING_SESSION:
+        MEETING_SESSION[session_id] = MeetingSchedulerBot()
+
+    scheduler = MEETING_SESSION[session_id]
+    scheduler.user_id = user_id
+
+    # If we are currently expecting date or purpose → ALWAYS process here
+    if scheduler.awaiting in ["datetime", "purpose"]:
+        reply = scheduler.respond(query)
+        return PlainTextResponse(reply)
+
+    # If user STARTS a meeting request
+    if is_meeting_request(query):
+        scheduler.reset_state()
+        reply = scheduler.respond(query)
+        return PlainTextResponse(reply)
 
     if not query or not query.strip():
         return "Please enter a query."
+        
+    if is_brochure_request(query):
+        brochure_path = "http://3.6.203.180:7602/documents/Brochure.pdf"
+        return PlainTextResponse(
+            f"Here is your brochure:\n{brochure_path}"
+        )
         
     # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
@@ -835,9 +862,6 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         
     ### Main LLM Call  
     llm = global_llm 
-    
-    
-    
 
     # Load local and external chat history
     if title_id!=None  and title_id!= 0: 
@@ -862,12 +886,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     chat_history_text = format_history_for_prompt(selected_hist) 
     if len(chat_history_text)> 800: 
         chat_history_text = chat_history_text[-800:]
-    final_context_to_file = (
-    f"User Query: {query}\n\n"
-    f"Knowledge Used:\n{context}\n"
-    f"{'='*60}\n"
-)
-    
+  
     
     if not context.strip():
         system_prompt = (
@@ -1005,24 +1024,9 @@ User Query:
 <|assistant|>
 """ 
 
-    # print("=✔🌴"*30)
-    # print("Total prompt Length: ", len(chatml_prompt.split())) 
-    # # print("Prompt : \n" , chatml_prompt)
-    # print("=✔🌴"*30)
-
-    ###############################
     complete_context_reference_set = chat_history_text +"\n" + context
     reference_words = build_reference_set(complete_context_reference_set)  
-    # print("=✔🌴"*30)
-    # print(reference_words)
-    # print("=✔🌴"*30)
-    ################################
-    # === STREAMING RESPONSE ===
     async def stream_response():
-        # print("\n\n=====================")
-        # print(f"🧠 User Query: {query}")
-        # print("=====================")
-        # print(f"📘 Context (truncated):\n{context[:400]}...\n")
 
         response_text = ""
         prev_chunk = ""
@@ -1091,15 +1095,6 @@ User Query:
         print(f"Total time  required to generate response: {end_time-start_time:.2f}")
         return 
         
-        # print("\n\n=====================")
-        # print("✅ Final Response:") 
-        # print(f"Total time  required to generate response: {end_time-start_time:.2f}")
-        # # print(response_text)
-        # # print("=====================\n")
-
-
-
-
     return StreamingResponse(
     stream_response(),
     media_type="text/plain",
