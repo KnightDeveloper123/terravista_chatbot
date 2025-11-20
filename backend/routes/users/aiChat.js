@@ -3,7 +3,7 @@ const router = express.Router();
 
 router.get("/get-info", async (req, res) => {
     try {
-        const { title_id, query } = req.query;
+        const { title_id, query, user_id } = req.query;
 
         if (!query) {
             return res.status(400).json({ error: "Query parameter is required" });
@@ -14,7 +14,7 @@ router.get("/get-info", async (req, res) => {
         const response = await fetch(`${pythonApiUrl}/stream_info`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title_id: title_id ?? 0, query: query })
+            body: JSON.stringify({ title_id: title_id ?? 0, query: query, user_id })
         });
 
         if (!response.ok) {

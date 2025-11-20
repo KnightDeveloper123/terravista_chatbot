@@ -153,7 +153,7 @@ const Home: React.FC = () => {
             // const botRes = await request({ url: `/ai/get-info?query=${encodeURIComponent(value)}`, method: "GET" });
 
             const query = encodeURIComponent(value);
-            const url = `${import.meta.env.VITE_BACKEND_URL}/ai/get-info?query=${query}&title_id=${currentTitleId}`;
+            const url = `${import.meta.env.VITE_BACKEND_URL}/ai/get-info?query=${query}&title_id=${currentTitleId}&user_id=${userId}`;
             const eventSource = new EventSource(url);
 
             let collected = "";
