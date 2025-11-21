@@ -8,6 +8,7 @@ from collections import Counter, defaultdict
 import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request , Body
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse
 import sys, time
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -669,7 +670,7 @@ def create_llm():
     llm = Llama( 
         model_path='models/qwen2.5-3b-instruct-q4_k_m.gguf',
         # model_path='models/qwen2.5-1.5b-instruct-q4_k_m.gguf',
-        n_ctx=2048,
+        n_ctx=4096,
         n_threads=8,
         n_batch=1024 , 
         verbose=False
@@ -690,6 +691,8 @@ MEETING_SESSION = {}
 # FastAPI
 # ========================================
 app = FastAPI(title="Real Estate Chatbot")
+
+# app.mount("/public", StaticFiles(directory="documents"), name="public")
 
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
@@ -718,10 +721,10 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         return "Please enter a query."
         
     if is_brochure_request(query):
-        brochure_path = "http://3.6.203.180:7602/documents/Brochure.pdf"
+        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
         return HTMLResponse(
-    f'Here is your brochure: {brochure_path}'
-)
+            f'Here is your brochure: <a href="{brochure_path}" target="_blank">Click Here</a>'
+        )
         
     # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
@@ -749,13 +752,15 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     active_society = SESSION_STATE[session_id].get("active_society")
 
     # Retrieve relevant context
-    retriever = SocietyFilteredRetriever(base_retriever, active_society, k=8)
+    retriever = SocietyFilteredRetriever(base_retriever, active_society, k=7)
     docs = retriever.invoke(query)
     ranked_docs = rerank.invoke({"docs": docs, "question": query})
-    context = format_docs(ranked_docs) 
+    context = format_docs(ranked_docs)  
     
-    if len(context) > 2000:
-        context = context[:2000]
+    
+    
+    if len(context) > 3000:
+        context = context[:3000]
         
     ### Main LLM Call  
     llm = global_llm 
@@ -780,7 +785,11 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     new_turn = {"user": query, "response": ""}
     selected_hist.append(new_turn)
-    chat_history_text = format_history_for_prompt(selected_hist) 
+    chat_history_text = format_history_for_prompt(selected_hist)   
+    
+    print("Lenghth of chat history text: ",len(chat_history_text))
+    print("Length of input context: " , len(context)) 
+    
     if len(chat_history_text)> 800: 
         chat_history_text = chat_history_text[-800:]
   
@@ -957,6 +966,7 @@ User Query:
         ):
             chunk = token["choices"][0].get("text", "")
             
+            print(chunk , end=" ")
             if not chunk.strip():
                 continue
 
@@ -964,7 +974,7 @@ User Query:
             buffer += chunk
 
             # if chunk ends with space or punctuation → treat buffer as a full word
-            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";")):
+            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";","\n", "\n\n", "-", "*")):
                 cleaned = cleaner(buffer)
                 yield cleaned
                 response_text += cleaned
