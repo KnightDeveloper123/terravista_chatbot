@@ -201,7 +201,7 @@ const Home: React.FC = () => {
             };
 
             eventSource.onerror = (err) => {
-                console.error("SSE Error:", err);
+                // console.error("SSE Error:", err);
                 setIsAiThinking(false);
                 eventSource.close();
             };
@@ -448,18 +448,12 @@ const Home: React.FC = () => {
                                                                 // detect URL
                                                                 if (urlRegex.test(trimmed)) {
                                                                     let clean = trimmed.replace(/[")<>]+$/g, '');
-
-                                                                    // console.log('here', clean);
-
                                                                     return (
-                                                                        <a
-                                                                            key={i}
-                                                                            href={clean}
-                                                                            target="_blank"
+                                                                        <a key={i} href={clean} target="_blank"
                                                                             rel="noopener noreferrer"
                                                                             style={{ color: '#fff', textDecoration: 'underline', fontWeight: 'bold' }}
                                                                         >
-                                                                            {clean}
+                                                                            Click Here
                                                                         </a>
                                                                     );
                                                                 }
