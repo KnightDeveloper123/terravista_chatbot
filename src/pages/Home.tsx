@@ -438,7 +438,8 @@ const Home: React.FC = () => {
                                                             const urlRegex = /(https?:\/\/\S+)/;
 
                                                             // ALWAYS capture URL parts correctly
-                                                            const parts = withIndent.split(/(https?:\/\/\S+)/);
+                                                            const parts = withIndent.split(/(\*\*.*?\*\*|\*.*?\*|https?:\/\/\S+)/);
+
                                                             const parsedLine = parts.map((part, i) => {
                                                                 if (!part) return null;
 
@@ -464,13 +465,15 @@ const Home: React.FC = () => {
                                                                 }
 
                                                                 // bold
-                                                                if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+                                                                const boldMatch = part.match(/^\*\*(.*?)\*\*$/);
+                                                                if (boldMatch) {
                                                                     return (
                                                                         <Text as="span" fontWeight="bold" key={i}>
-                                                                            {trimmed.slice(2, -2)}
+                                                                            {boldMatch[1]}
                                                                         </Text>
                                                                     );
                                                                 }
+
 
                                                                 // italic
                                                                 if (trimmed.startsWith('*') && trimmed.endsWith('*')) {
