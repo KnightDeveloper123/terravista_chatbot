@@ -185,9 +185,6 @@ class MeetingSchedulerBot:
                 "description": purpose
             }
 
-            print("payload sent:", payload)
-            with open("payload.txt" , 'w') as f: 
-                f.write(payload)
             try:
                 response = requests.post(
                     "http://3.6.203.180:7601/meetings/scheduleMeeting",
