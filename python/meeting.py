@@ -188,10 +188,9 @@ class MeetingSchedulerBot:
                 api_status = f"❌ API Error: {str(e)}"
 
             summary = (
-                f"✅ **Meeting Scheduled!**\n"
-                f"📅 {dt.strftime('%A, %B %d, %Y')}\n"
-                f"⏰ {dt.strftime('%I:%M %p')}\n"
-                f"📝 {purpose}\n\n"
+                f"✅ **Meeting Scheduled!**\n "
+                f" on {dt.strftime('%A, %B %d, %Y')}\n "
+                f" at {dt.strftime('%I:%M %p')}\n"
             )
 
             self.reset_state()
