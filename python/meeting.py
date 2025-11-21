@@ -94,33 +94,26 @@ def extract_datetime(text):
                 continue
     return None 
 
-
 def generate_meeting_description(chat_history, max_words=30):
-    """
-    Creates a short 20–30 word meeting description 
-    based on the last few user + assistant messages.
-    """
     if not chat_history:
         return "General discussion regarding the property."
 
-    # Take last 3–5 lines of conversation
-    text = " ".join(chat_history[-5:])
+    # ❌ Remove user lines
+    cleaned = [line for line in chat_history if not line.lower().startswith("user:")]
 
-    # Basic cleanup
+    if not cleaned:
+        return "General discussion regarding the property."
+
+    text = " ".join(cleaned[-5:])
     text = re.sub(r'\s+', ' ', text).strip()
 
-    # Tokenize into words
     words = text.split()
-
-    # Limit to ~30 words
     summary = " ".join(words[:max_words])
 
-    # Fallback
     if len(summary) < 10:
         summary = "Discussion regarding project details and user requirements."
 
     return summary
-
 
 FINAL = False
 
@@ -148,7 +141,7 @@ class MeetingSchedulerBot:
             if dt:
                 self.meeting['datetime'] = dt
                 self.awaiting = 'purpose'
-                return f"Got it! Meeting on **{dt.strftime('%A, %B %d, %Y at %I:%M %p')}**"
+                return f"Got it! to Schedule meeting or confirm on **{dt.strftime('%A, %B %d, %Y at %I:%M %p')}** please Type Yes "
             else:
                 return "I couldn't understand the date/time. Try: '28 November', 'Nov 28 at 3 PM', etc."
 

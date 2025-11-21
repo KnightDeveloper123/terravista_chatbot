@@ -818,12 +818,12 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         system_prompt = (
         "You are Arya — a warm, polite, and expert real-estate assistant. "
         "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
-        "respond with a friendly, short greeting and add ONE polite follow-up question such as "
+        "respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow"
         "'How can I help you today?' or 'Would you like details about any project?'. "
         "Your single source of truth is the section called 'Knowledge'. "
-        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
-        "you must answer using that information directly and confidently. "
-        "Do not ask for the project or developer again — use what is provided in Knowledge. "
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+        "you must answer using that information directly and confidently."
+        "Do not ask for the project or developer again — use what is provided in Knowledge."
         "Don't Use Certainly word in response"
         "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
         "Avoid generic responses or repeating the user's query. "
@@ -938,8 +938,8 @@ User Query:
 """ 
 
 
-    complete_context_reference_set = chat_history_text +"\n" + context
-    reference_words = build_reference_set(complete_context_reference_set)  
+        # complete_context_reference_set = chat_history_text +"\n" + context
+        # reference_words = build_reference_set(complete_context_reference_set)  
     last_char = ""
 
     async def stream_response(): 
