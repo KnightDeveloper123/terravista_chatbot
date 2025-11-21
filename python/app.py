@@ -720,7 +720,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if is_brochure_request(query):
         brochure_path = "http://3.6.203.180:7602/documents/Brochure.pdf"
         return HTMLResponse(
-    f'Here is your brochure: <a href="{brochure_path}" target="_blank">click here</a>'
+    f'Here is your brochure: {brochure_path}'
 )
         
     # ✅ INSERT GREETING HANDLER HERE
