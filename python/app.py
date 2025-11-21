@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request , Body
-from fastapi.responses import StreamingResponse , PlainTextResponse
+from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse
 import sys, time
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
@@ -719,9 +719,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         
     if is_brochure_request(query):
         brochure_path = "http://3.6.203.180:7602/documents/Brochure.pdf"
-        return PlainTextResponse(
-            f"Here is your brochure: {brochure_path}"
-        )
+        return HTMLResponse(
+    f'Here is your brochure: <a href="{brochure_path}" target="_blank">click here</a>'
+)
         
     # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
