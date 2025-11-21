@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Box, VStack, Text, Button, Avatar, Separator, Flex, IconButton, Image, Heading, Textarea } from "@chakra-ui/react"
+import { Box, VStack, Text, Button, Avatar, Separator, Flex, IconButton, Image, Heading, Textarea, Link } from "@chakra-ui/react"
 import { FiPlus, FiSettings, FiHelpCircle } from "react-icons/fi"
 import { GoSidebarExpand } from 'react-icons/go';
 import { IoSearchSharp, IoSend } from 'react-icons/io5';
@@ -171,6 +171,8 @@ const Home: React.FC = () => {
 
                 if (e.data === "end") {
                     setAllChats((prev) => {
+                        console.log(collected);
+
                         const updated = [...prev];
                         const botIndex = updated.findIndex(c => c.sender === "bot" && c.message === "");
                         if (botIndex !== -1) updated[botIndex].message = collected;
@@ -426,64 +428,139 @@ const Home: React.FC = () => {
                                         <Box alignSelf={chat.sender === "user" ? "flex-end" : "flex-start"} bg={chat.sender === "user" ? "#fff" : "#005392"} color={chat.sender === "user" ? "#000" : "white"} borderRadius="20px" p="10px" maxW="60%" my="8px" boxShadow="md">
                                             {chat.sender === "bot" && index === allChats.length - 1 ? (
                                                 <Box>
-                                                    {chat.message.split('\n\n').filter(line => line.trim() !== '').map((line, idx) => {
-                                                        const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
-                                                        const parsedLine = withIndent.split(/(\*\*.*?\*\*|\*.*?\*)/).map((part, i) => {
-                                                            if (part.startsWith('**') && part.endsWith('**')) {
-                                                                return (
-                                                                    <Text as="span" fontWeight="bold" key={i}>
-                                                                        {part.slice(2, -2)}
-                                                                    </Text>
-                                                                );
-                                                            } else if (part.startsWith('*') && part.endsWith('*')) {
-                                                                return (
-                                                                    <Text as="span" fontStyle="italic" key={i}>
-                                                                        {part.slice(1, -1)}
-                                                                    </Text>
-                                                                );
-                                                            } else {
-                                                                return <Text as="span" key={i}>{part}</Text>;
-                                                            }
-                                                        });
+                                                    {chat?.message
+                                                        ?.split(/\n+/)
+                                                        .filter(line => line.trim() !== '')
+                                                        .map((line, idx) => {
+                                                            const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
 
-                                                        return (
-                                                            <Flex key={idx} flexDir={'column'}>
-                                                                <Text mt={idx !== 0 ? 3 : 0}>{parsedLine}</Text>
-                                                            </Flex>
-                                                        );
-                                                    })}
+                                                            // simplified and reliable URL regex
+                                                            const urlRegex = /(https?:\/\/\S+)/;
+
+                                                            // ALWAYS capture URL parts correctly
+                                                            const parts = withIndent.split(/(https?:\/\/\S+)/);
+                                                            const parsedLine = parts.map((part, i) => {
+                                                                if (!part) return null;
+
+                                                                const trimmed = part.trim();
+
+                                                                // detect URL
+                                                                if (urlRegex.test(trimmed)) {
+                                                                    let clean = trimmed.replace(/[")<>]+$/g, '');
+
+                                                                    // console.log('here', clean);
+
+                                                                    return (
+                                                                        <a
+                                                                            key={i}
+                                                                            href={clean}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            style={{ color: '#fff', textDecoration: 'underline', fontWeight: 'bold' }}
+                                                                        >
+                                                                            {clean}
+                                                                        </a>
+                                                                    );
+                                                                }
+
+                                                                // bold
+                                                                if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+                                                                    return (
+                                                                        <Text as="span" fontWeight="bold" key={i}>
+                                                                            {trimmed.slice(2, -2)}
+                                                                        </Text>
+                                                                    );
+                                                                }
+
+                                                                // italic
+                                                                if (trimmed.startsWith('*') && trimmed.endsWith('*')) {
+                                                                    return (
+                                                                        <Text as="span" fontStyle="italic" key={i}>
+                                                                            {trimmed.slice(1, -1)}
+                                                                        </Text>
+                                                                    );
+                                                                }
+
+
+
+                                                                return <Text as="span" key={i}>{part}</Text>;
+                                                            });
+
+                                                            return (
+                                                                <Flex key={idx} flexDir={'column'}>
+                                                                    <Text mt={idx !== 0 ? 3 : 0}>{parsedLine}</Text>
+                                                                </Flex>
+                                                            );
+                                                        })}
                                                 </Box>
 
                                             ) : (
                                                 <Box>
                                                     <Box>
-                                                        {chat?.message?.split('\n\n').filter(line => line.trim() !== '').map((line, idx) => {
-                                                            const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0'); // 4 non-breaking spaces
+                                                        {chat?.message
+                                                            ?.split(/\n+/)
+                                                            .filter(line => line.trim() !== '')
+                                                            .map((line, idx) => {
+                                                                const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
 
-                                                            const parsedLine = withIndent.split(/(\*\*.*?\*\*|\*.*?\*)/).map((part, i) => {
-                                                                if (part.startsWith('**') && part.endsWith('**')) {
-                                                                    return (
-                                                                        <Text as="span" fontWeight="bold" key={i}>
-                                                                            {part.slice(2, -2)}
-                                                                        </Text>
-                                                                    );
-                                                                } else if (part.startsWith('*') && part.endsWith('*')) {
-                                                                    return (
-                                                                        <Text as="span" fontStyle="italic" key={i}>
-                                                                            {part.slice(1, -1)}
-                                                                        </Text>
-                                                                    );
-                                                                } else {
+                                                                // simplified and reliable URL regex
+                                                                const urlRegex = /(https?:\/\/\S+)/;
+
+                                                                // ALWAYS capture URL parts correctly
+                                                                const parts = withIndent.split(/(https?:\/\/\S+)/);
+                                                                const parsedLine = parts.map((part, i) => {
+                                                                    if (!part) return null;
+
+                                                                    const trimmed = part.trim();
+
+                                                                    // detect URL
+                                                                    if (urlRegex.test(trimmed)) {
+                                                                        let clean = trimmed.replace(/[")<>]+$/g, '');
+
+                                                                        // console.log('here', clean);
+
+                                                                        return (
+                                                                            <a
+                                                                                key={i}
+                                                                                href={clean}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                style={{ color: '#3182ce', textDecoration: 'underline' }}
+                                                                            >
+                                                                                {clean}
+                                                                            </a>
+                                                                        );
+                                                                    }
+
+                                                                    // bold
+                                                                    if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
+                                                                        return (
+                                                                            <Text as="span" fontWeight="bold" key={i}>
+                                                                                {trimmed.slice(2, -2)}
+                                                                            </Text>
+                                                                        );
+                                                                    }
+
+                                                                    // italic
+                                                                    if (trimmed.startsWith('*') && trimmed.endsWith('*')) {
+                                                                        return (
+                                                                            <Text as="span" fontStyle="italic" key={i}>
+                                                                                {trimmed.slice(1, -1)}
+                                                                            </Text>
+                                                                        );
+                                                                    }
+
+
+
                                                                     return <Text as="span" key={i}>{part}</Text>;
-                                                                }
-                                                            });
+                                                                });
 
-                                                            return (
-                                                                <Text key={idx} mt={idx !== 0 ? 3 : 0}>
-                                                                    {parsedLine}
-                                                                </Text>
-                                                            );
-                                                        })}
+                                                                return (
+                                                                    <Box key={idx} mt={idx !== 0 ? 3 : 0}>
+                                                                        {parsedLine}
+                                                                    </Box>
+                                                                );
+                                                            })}
                                                     </Box>
                                                 </Box>
                                             )}
