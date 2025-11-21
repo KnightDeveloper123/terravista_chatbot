@@ -8,7 +8,7 @@ from collections import Counter, defaultdict
 import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request , Body
-from fastapi.responses import StreamingResponse , PlainTextResponse
+from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse
 import sys, time
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
@@ -636,79 +636,7 @@ def detect_greeting(text: str):
         "namaste": "Namaste! How may I be of service?",
        "thanks": "You're welcome! Happy to help! 😊",
     "thank you": "Thank you! I'm glad I could assist you!",
-    "thank you so much": "You're very welcome! I'm here whenever you need me! 🌟",
-    "thanks a lot": "My pleasure! Don't hesitate to ask if you need anything else!",
-    "thanks a bunch": "Anytime! I'm always happy to help! 😄",
-    "much appreciated": "Glad to be of service! What else can I do for you?",
-    "appreciate it": "You're welcome! That's what I'm here for!",
-    "appreciate your help": "It's my pleasure to assist you! 🤗",
-    "nice": "Awesome! Is there anything specific you'd like to know?",
-    "that's nice": "Great! How can I make your day better?",
-    "very nice": "Thank you! I'm here to provide the best help possible! 🌈",
-    "so nice": "You're so kind! What can I assist you with today?",
-    "nice one": "Thanks! Ready for whatever you need next! 👍",
-    "good job": "Thank you! I'm here to help you succeed! 🚀",
-    "well done": "Much appreciated! How else can I assist you?",
-    "excellent": "Thank you! I'm dedicated to giving you excellent service! ⭐",
-    "awesome": "You're awesome too! What can I help you with?",
-    "great": "Great to hear! How may I continue assisting you?",
-    "fantastic": "Fantastic! I'm here to make your experience better! 😎",
-    "amazing": "You're amazing too! What would you like to know?",
-    "perfect": "Perfect! I'm here to provide perfect assistance! 💫",
-    "wonderful": "Wonderful! How can I help make your day even better?",
-    "brilliant": "Thank you! I'm here to provide brilliant support! ✨",
-    "outstanding": "Much appreciated! I'm committed to outstanding service! 🌟",
-    "impressive": "Thank you! I'm impressed by your kindness! 😊",
-    "super": "Super! I'm here to supercharge your experience! ⚡",
-    "cool": "Cool! What can I help you explore today?",
-    "sweet": "Sweet! Ready to assist you with anything! 🍭",
-    "lovely": "Lovely to interact with you too! How can I help?",
-    "beautiful": "You're beautiful too! What can I do for you? 🌸",
-    "marvelous": "Marvelous! I'm here to provide marvelous support!",
-    "splendid": "Splendid! How may I be of service to you?",
-    "terrific": "Terrific! I'm here to give you terrific assistance! 🎯",
-    "fabulous": "Fabulous! What fabulous thing can I help you with? 💖",
-    "stellar": "Stellar! I'm here to provide stellar support! 🌠",
-    "phenomenal": "Phenomenal! How can I phenomenally assist you?",
-    "remarkable": "Remarkable! I'm here to provide remarkable help!",
-    "exceptional": "Exceptional! What exceptional service can I provide? 🏆",
-    "incredible": "Incredible! I'm here to incredibly assist you!",
-    "extraordinary": "Extraordinary! How can I extraordinarily help you?",
-    "magnificent": "Magnificent! I'm here to provide magnificent support! 👑",
-    "many thanks": "Many welcomes! I'm here for all your needs!",
-    "thanks a million": "A million welcomes! Always here to help! 💫",
-    "much obliged": "The pleasure is mine! How else can I assist?",
-    "deeply grateful": "I'm deeply happy to help! What's next?",
-    "eternally grateful": "I'm eternally here for you! How can I help?",
-    "highly appreciated": "Highly glad to assist! What do you need? 🌟", 
-    "sounds good": "Thanks for using Our platform.",
-    # Quick appreciative responses
-    "thx": "You're welcome! 😊",
-    "ty": "Anytime! What's up?",
-    "tysm": "My pleasure! How can I help? 🌈",
-    "tyvm": "You're very welcome! Ready for more!",
-    "nice job": "Thank you! Happy to be of service! 👍",
-    "good stuff": "Thanks! I'm here with more good stuff!",
-    "well played": "Thank you! Ready for the next round! 🎮",
-    
-    # Appreciative with enthusiasm
-    "you're the best": "No, you're the best! How can I help? 🌟",
-    "you rock": "You rock too! What can I do for you? 🎸",
-    "you're amazing": "You're more amazing! How may I assist?",
-    "you're awesome": "Coming from you, that means a lot! 😄",
-    "you're great": "You're greater! What can I help with?",
-    "you're wonderful": "You're wonderful too! How can I serve you?",
-    
-    # Grateful responses
-    "grateful": "I'm grateful to help you! What's next?",
-    "so grateful": "I'm so happy to assist! How can I help?",
-    "very grateful": "I'm very glad to be of service! 🌟",
-    "extremely grateful": "I'm extremely happy to help you!",
-    
-    # Bless you responses
-    "bless you": "Thank you! Bless you too! How can I help?",
-    "god bless you": "Thank you! How may I assist you today?",
-    "bless your heart": "You're so kind! What can I do for you? 💖"
+   
     }
 
     normalized = normalize_text(text)
@@ -784,32 +712,16 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         if user_id: 
             print("user_id mil gaya")
     session_id = get_session_id(request)
-    # --- MEETING INTENT HANDLING ---
-    if session_id not in MEETING_SESSION:
-        MEETING_SESSION[session_id] = MeetingSchedulerBot()
-
-    scheduler = MEETING_SESSION[session_id]
-    scheduler.user_id = user_id
-
-    # If we are currently expecting date or purpose → ALWAYS process here
-    if scheduler.awaiting in ["datetime", "purpose"]:
-        reply = scheduler.respond(query)
-        return PlainTextResponse(reply)
-
-    # If user STARTS a meeting request
-    if is_meeting_request(query):
-        scheduler.reset_state()
-        reply = scheduler.respond(query)
-        return PlainTextResponse(reply)
+    
 
     if not query or not query.strip():
         return "Please enter a query."
         
     if is_brochure_request(query):
         brochure_path = "http://3.6.203.180:7602/documents/Brochure.pdf"
-        return PlainTextResponse(
-            f"Here is your brochure:\n{brochure_path}"
-        )
+        return HTMLResponse(
+    f'Here is your brochure: {brochure_path}'
+)
         
     # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
@@ -826,22 +738,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
                 query = query[len(key):].strip(",.! ").strip()
                 break
 
-    # Intent handling
-    intent = detect_special_intent(query)
-    if intent:
-        if intent["type"] == "brochure":
-            response_text = ( 
-                f"{os.path.basename(intent['content'])}"
-                if intent["content"]
-                else "Sorry, I couldn't find a brochure right now."
-            )
-        elif intent["type"] == "schedule":
-            response_text = f"Great! You can schedule a call here: {intent['content']}"
-        async def token_response():
-            for ch in response_text:
-                yield ch
-        return StreamingResponse(token_response(), media_type="text/plain")
-
+    
     # Detect society and manage session
     mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
     if mentioned:
@@ -887,11 +784,33 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if len(chat_history_text)> 800: 
         chat_history_text = chat_history_text[-800:]
   
+    if session_id not in MEETING_SESSION:
+        MEETING_SESSION[session_id] = MeetingSchedulerBot()
+
+    scheduler = MEETING_SESSION[session_id]
+    scheduler.user_id = user_id
+
+    # If we are currently expecting date or purpose → ALWAYS process here
+    if scheduler.awaiting in ["datetime", "purpose"]:
+        reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
+        return PlainTextResponse(reply)
+
+    # If user STARTS a meeting request
+    if is_meeting_request(query):
+        scheduler.reset_state()
+        reply = scheduler.respond(query)
+        return PlainTextResponse(reply) 
     
-    if not context.strip():
+    last_char = ""  
+    def cleaner(text):
+        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text)
+    if len(context.strip())< 10: 
+        print("no Context")
         system_prompt = (
         "You are Arya — a warm, polite, and expert real-estate assistant. "
-        "Give the Correct Response of greetings which are asked"
+        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
+        "respond with a friendly, short greeting and add ONE polite follow-up question such as "
+        "'How can I help you today?' or 'Would you like details about any project?'. "
         "Your single source of truth is the section called 'Knowledge'. "
         "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
         "you must answer using that information directly and confidently. "
@@ -921,10 +840,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     <|assistant|>
     """ 
         async def stream_response():
-
-
             response_text = ""
             prev_chunk = ""
+            buffer = ""  
             word_buffer = []
             start_time = time.time()
             print("🎈🎈Start generating response ......")
@@ -939,42 +857,30 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
                 stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
             ):
                 chunk = token["choices"][0].get("text", "")
-                
                 if chunk.strip() == "":
+                    continue 
+                
+                if not chunk:
                     continue
+
                 # Prevent duplication
                 if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
-                    continue
-                prev_chunk = chunk
-
-                # Skip unwanted HTML/control tokens
-                if any(tag in chunk for tag in ["<div", "</", "<|user|>", "<|system|>"]):
-                    continue
-
-                # Add missing space if needed
-                if response_text and not response_text.endswith((" ", "\n")) and not chunk.startswith((" ", ".", ",", "!", "?")):
-                    chunk = " " + chunk
-
-                # Collect into buffer
-                words = chunk.split()
-                word_buffer.extend(words)
-
-                # 🧹 If buffer has 10 or more words, clean and yield
-                if len(word_buffer) >= 10:
-                    segment = " ".join(word_buffer)
-        
-                    print(segment, end=" ", flush=True)
-                    yield segment + " "
-
-                    response_text += segment + " "
-                    word_buffer = []  # reset buffer
-
-                await asyncio.sleep(0)
-
-                # safety cutoff
+                    continue  
+                
                 if len(response_text) > 800:
-                    print("\n[🛑 Auto-stop after 1500 chars]\n")
+                    print("\n[🛑 Auto-stop after 800 chars]\n")
                     break 
+                
+                buffer += chunk
+
+            # if chunk ends with space or punctuation → treat buffer as a full word
+            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";")):
+                cleaned = cleaner(buffer)
+                yield cleaned
+                response_text += cleaned
+                buffer = ""  
+
+            await asyncio.sleep(0)
         return StreamingResponse(
             stream_response(),
             media_type="text/plain",
@@ -989,20 +895,18 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     # 🧩 Clean system message for DeepSeek model
     
 
-    system_prompt = (
+    system_prompt = ( 
     "You are Arya — a warm, polite, and expert real-estate assistant. "
-    "Your single source of truth is the section called 'Knowledge'. "
+    "Your single source of truth is the section called 'Knowledge'. " 
     "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
-    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
     "you must answer using that information directly and confidently. "
     "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
     "Do not ask for the project or developer again — use what is provided in Knowledge. "
-    "Only if Knowledge is completely empty should you ask a follow-up. "
-    "Don't Use Certainly, first Conversation in response. "
-    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
-    "Avoid generic responses or repeating the user's query. "
-    "Be concise, accurate, and factual."
-)
+    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
     chatml_prompt = f"""
 <|system|>
 {system_prompt}
@@ -1024,14 +928,22 @@ User Query:
 <|assistant|>
 """ 
 
+
     complete_context_reference_set = chat_history_text +"\n" + context
     reference_words = build_reference_set(complete_context_reference_set)  
-    async def stream_response():
+    last_char = ""
 
-        response_text = ""
-        prev_chunk = ""
-        word_buffer = []
+    async def stream_response(): 
+        print('if context')
         start_time = time.time()
+        global last_char
+        last_char = ""
+
+        response_text = ""   # full accumulated output
+        buffer = ""          # word reconstruction buffer
+       # word reconstruction buffer
+        prev_chunk = "" 
+        word_buffer = []
         print("🎈🎈Start generating response ......")
         for token in llm(
             chatml_prompt,
@@ -1045,56 +957,27 @@ User Query:
         ):
             chunk = token["choices"][0].get("text", "")
             
-            if chunk.strip() == "":
-                continue
-            # Prevent duplication
-            if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
-                continue
-            prev_chunk = chunk
-
-            # Skip unwanted HTML/control tokens
-            if any(tag in chunk for tag in ["<div", "</", "<|user|>", "<|system|>"]):
+            if not chunk.strip():
                 continue
 
-            # Add missing space if needed
-            if response_text and not response_text.endswith((" ", "\n")) and not chunk.startswith((" ", ".", ",", "!", "?")):
-                chunk = " " + chunk
+            # accumulate raw chunk first
+            buffer += chunk
 
-            # Collect into buffer
-            words = chunk.split()
-            word_buffer.extend(words)
-
-            # 🧹 If buffer has 10 or more words, clean and yield
-            if len(word_buffer) >= 10:
-                segment = " ".join(word_buffer)
-                cleaned_segment = smart_fix_spaces_dynamic(segment, reference_words=reference_words)
-
-                print(cleaned_segment, end=" ", flush=True)
-                yield cleaned_segment + " "
-
-                response_text += cleaned_segment + " "
-                word_buffer = []  # reset buffer
+            # if chunk ends with space or punctuation → treat buffer as a full word
+            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";")):
+                cleaned = cleaner(buffer)
+                yield cleaned
+                response_text += cleaned
+                buffer = ""  # reset buffer
 
             await asyncio.sleep(0)
 
-            # safety cutoff
-            if len(response_text) > 1500:
-                print("\n[🛑 Auto-stop after 1500 chars]\n")
-                break
-
-        # Flush remaining words
-        if word_buffer:
-            segment = " ".join(word_buffer)
-            cleaned_segment = smart_fix_spaces_dynamic(segment, reference_words=reference_words)
-
-            print(cleaned_segment, end=" ", flush=True)
-            yield cleaned_segment + " "
-            response_text += cleaned_segment + " "
-
-        end_time = time.time() 
-        print(f"Total time  required to generate response: {end_time-start_time:.2f}")
-        return 
-        
+        # flush remaining
+        if buffer:
+            cleaned = cleaner(buffer)
+            yield cleaned
+            response_text += cleaned
+            
     return StreamingResponse(
     stream_response(),
     media_type="text/plain",
