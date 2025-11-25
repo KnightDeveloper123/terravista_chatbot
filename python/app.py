@@ -672,6 +672,7 @@ def create_llm():
         # model_path='models/qwen2.5-1.5b-instruct-q4_k_m.gguf',
         n_ctx=4096,
         n_threads=8,
+        gpu_layers=9999,      # fully use GPU
         n_batch=1024 , 
         verbose=False
     )
@@ -956,7 +957,7 @@ User Query:
         print("🎈🎈Start generating response ......")
         for token in llm(
             chatml_prompt,
-            max_tokens=400,  # shorter and safer
+            max_tokens=384,  # shorter and safer
             temperature=0.25,
             top_p=0.85,
             repeat_penalty=1.05,
