@@ -123,7 +123,7 @@ def load_documents(file_path: str = DATA_FILE):
 def create_embeddings():
     return HuggingFaceEmbeddings(
         model_name="models/all-MiniLM-L6-v2",
-        model_kwargs={"device": "cpu"},
+        model_kwargs={"device": "cuda"},
         encode_kwargs={"normalize_embeddings": True},
     )
     
