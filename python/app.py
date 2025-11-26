@@ -124,7 +124,7 @@ def load_documents(file_path: str = DATA_FILE):
 # ========================================
 def create_embeddings():
     return HuggingFaceEmbeddings(
-        model_name="models/all-MiniLM-L6-v2",
+        model_name="./models/all-MiniLM-L6-v2",
         model_kwargs={"device": "cuda"},
         encode_kwargs={"normalize_embeddings": True},
     )
@@ -154,14 +154,6 @@ def get_vectorstore_and_retriever():
 
     vs = build_vectorstore()
     return vs, vs.as_retriever(search_kwargs={"k": 12})
-
-# def create_multiquery_retriever(vectorstore, llm):
-    
-#     return MultiQueryRetriever.from_llm(
-#         retriever=vectorstore.as_retriever(search_kwargs={"k": 8}),
-#         llm=llm  # you already have an LLM function
-#     )
-
 
 vectorstore, base_retriever = get_vectorstore_and_retriever()
 
@@ -214,27 +206,7 @@ def create_reranker(embeddings, top_k: int = 3, threshold: float = 0.3) -> Runna
 # ========================================
 # Dictionary and spell correction
 # ========================================
-STOPWORDS = {
-    "the","is","and","or","of","to","a","in","on","for","with","at",
-    "are","you","we","it","do","have","what","how","i"
-}
-def build_dictionary():
-    if not os.path.exists(DATA_FILE):
-        raise FileNotFoundError(f"{DATA_FILE} not found!")
 
-    with open(DATA_FILE, "r", encoding="utf-8") as f:
-        content = f.read().lower()
-
-    words = re.findall(r"[a-zA-Z0-9]+", content)
-    filtered = [w for w in words if w not in STOPWORDS and len(w) > 2]
-    word_counts = Counter(filtered)
-
-    with open(OUTPUT_DICT, "w", encoding="utf-8") as f:
-        for word, count in word_counts.items():
-            f.write(f"{word} {count}\n")
-
-    print(f"✅ Dictionary created: {OUTPUT_DICT}")
-    print(f"📌 Total unique words: {len(word_counts)}")
 
 sym_spell = SymSpell(max_dictionary_edit_distance=2, prefix_length=7)
 if os.path.exists(OUTPUT_DICT):
@@ -242,10 +214,6 @@ if os.path.exists(OUTPUT_DICT):
 else:
     # safe load if not yet built; will rebuild on first query
     pass
-
-def correct_spelling(text: str) -> str:
-    suggestions = sym_spell.lookup_compound(text, max_edit_distance=2)
-    return suggestions[0].term if suggestions else text
 
 # ========================================
 # Intent detection
