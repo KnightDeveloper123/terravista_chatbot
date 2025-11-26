@@ -1,27 +1,37 @@
-from huggingface_hub import hf_hub_download  , login 
-from sentence_transformers import SentenceTransformer
-from llama_cpp import Llama 
-import time 
+from transformers import AutoModelForCausalLM, AutoTokenizer
+import torch
+import os
+from huggingface_hub import login
 from dotenv import load_dotenv 
 load_dotenv() 
-import os 
-import sys 
+from sentence_transformers import SentenceTransformer
+HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN') 
 
-HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN')
+save_path = "/root/github/python_model/all-MiniLM-L6-v2"
 
-login(HUGGINGFACE_TOKEN) 
-print('login successful')
-sentence_transformer = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
-sentence_transformer.save('/root/github/python_model/all-MiniLM-L6-v2')
-print("✔ successfully Download the senetence Transformer model............") 
+embedding_model = SentenceTransformer(
+    "sentence-transformers/all-MiniLM-L6-v2",
+    cache_folder=save_path
+)
 
-LLM_model = hf_hub_download(
-    repo_id='Qwen/Qwen2.5-3B-Instruct-GGUF'  ,  
-    filename='qwen2.5-3b-instruct-q4_k_m.gguf' , 
-    local_dir= '/root/github/python_model'
-    
-) 
+embedding_model.save(save_path)
 
+model_path = "Qwen/Qwen2.5-3B-Instruct-GPTQ-Int4"
 
-print("✔ successfully Download the LLM model............") 
- 
+# Load tokenizer
+tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+# Load model correctly
+model = AutoModelForCausalLM.from_pretrained(
+    model_path,
+    torch_dtype=torch.float16,   # correct param name
+    device_map="auto",           # load on your GPU
+    low_cpu_mem_usage=True
+)
+
+# Save model locally
+save_dir = "/root/github/python_model/Qwen2.5-3B-Instruct-GPTQ-Int4"
+model.save_pretrained(save_dir)
+tokenizer.save_pretrained(save_dir)
+
+print("Model saved successfully!")

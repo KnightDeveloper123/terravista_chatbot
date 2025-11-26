@@ -24,7 +24,9 @@ from symspellpy import SymSpell
 # from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
 from difflib import SequenceMatcher
-from llama_cpp import Llama 
+from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer
+import threading
+import torch
 from meeting import * 
 from utils import is_brochure_request
 import asyncio 
@@ -664,24 +666,74 @@ def detect_greeting(text: str):
     # 3️⃣ Not a greeting at all
     return {"is_greeting": False, "response": None}
  
-#=========================================================
-def create_llm():
+#========================================================= 
 
-    llm = Llama( 
-        model_path='models/qwen2.5-3b-instruct-q4_k_m.gguf',
-        # model_path='models/qwen2.5-1.5b-instruct-q4_k_m.gguf',
-        n_ctx=4096,
-        n_threads=8,
-        n_gpu_layers=-1,      # fully use GPU
-        n_batch=512 , 
-        verbose=False
-    )       
-    return llm
+# model = AutoModelForCausalLM.from_pretrained(
+#     model_path,
+#     device_map={"": "cuda"},   # force every module to GPU
+#     torch_dtype=torch.float16, # best for GPTQ
+#     low_cpu_mem_usage=True     # prevents model shards on CPU
+# )
+def create_llm():
+    model_path = "./models/Qwen2.5-3B-Instruct-GPTQ-Int4"
+
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+
+    model = AutoModelForCausalLM.from_pretrained(
+        model_path,
+        device_map="auto",
+        torch_dtype=torch.float16,   # GPTQ should ALWAYS use fp16
+        low_cpu_mem_usage=True
+    )
+
+    return tokenizer, model
+
+SKIP_TOKENS = {
+    "<|end|>", "<|user|>", "<|assistant|>", "<|system|>",
+    "<s>", "</s>", "<unk>", "<pad>"
+}
+
+async def hf_stream_generate(prompt, model, tokenizer):
+    # Tokenize properly
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    streamer = TextIteratorStreamer(
+        tokenizer,
+        skip_prompt=True,
+        skip_special_tokens=True
+    )
+
+    # IMPORTANT FIX: pass only input_ids, not the whole dict
+    gen_kwargs = dict(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        streamer=streamer,
+        max_new_tokens=384,
+        temperature=0.25,
+        top_p=0.85,
+        do_sample=True,
+    )
+
+    # Run generate() in background thread
+    thread = threading.Thread(target=model.generate, kwargs=gen_kwargs)
+    thread.start()
+
+    # Yield tokens as they come
+    for new_text in streamer:
+        # skip if chunk is a special token
+        if new_text in SKIP_TOKENS:
+            continue
+
+        if new_text.strip():
+            yield new_text
+        await asyncio.sleep(0)
 
 embeddings = create_embeddings()
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
-global_llm  = create_llm() 
+
+
+## how we skipe the tokens like <|end|>
 
 parser = StrOutputParser() 
 
@@ -694,7 +746,8 @@ MEETING_SESSION = {}
 app = FastAPI(title="Real Estate Chatbot")
 
 # app.mount("/public", StaticFiles(directory="documents"), name="public")
-
+global_tokenizer, global_model = create_llm()
+ 
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
@@ -764,7 +817,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         context = context[:3000]
         
     ### Main LLM Call  
-    llm = global_llm 
+    llm = global_model  
 
     # Load local and external chat history
     if title_id!=None  and title_id!= 0: 
@@ -850,47 +903,13 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     <|assistant|>
     """ 
         async def stream_response():
-            response_text = ""
-            prev_chunk = ""
-            buffer = ""  
-            word_buffer = []
-            start_time = time.time()
-            print("🎈🎈Start generating response ......")
-            for token in llm(
+            async for token in hf_stream_generate(
                 chatml_prompt,
-                max_tokens=200,  # shorter and safer
-                temperature=0.25,
-                top_p=0.85,
-                repeat_penalty=1.05,
-                stream=True,
-                presence_penalty=0.3,
-                stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
+                global_model,
+                global_tokenizer
             ):
-                chunk = token["choices"][0].get("text", "")
-                if chunk.strip() == "":
-                    continue 
-                
-                if not chunk:
-                    continue
+                yield cleaner(token)
 
-                # Prevent duplication
-                if chunk.strip() == "" or chunk.strip() == prev_chunk.strip():
-                    continue  
-                
-                if len(response_text) > 800:
-                    print("\n[🛑 Auto-stop after 800 chars]\n")
-                    break 
-                
-                buffer += chunk
-
-            # if chunk ends with space or punctuation → treat buffer as a full word
-            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";")):
-                cleaned = cleaner(buffer)
-                yield cleaned
-                response_text += cleaned
-                buffer = ""  
-
-            await asyncio.sleep(0)
         return StreamingResponse(
             stream_response(),
             media_type="text/plain",
@@ -942,58 +961,20 @@ User Query:
         # complete_context_reference_set = chat_history_text +"\n" + context
         # reference_words = build_reference_set(complete_context_reference_set)  
     last_char = ""
-
-    async def stream_response(): 
-        print('if context')
-        start_time = time.time()
-        global last_char
-        last_char = ""
-
-        response_text = ""   # full accumulated output
-        buffer = ""          # word reconstruction buffer
-       # word reconstruction buffer
-        prev_chunk = "" 
-        word_buffer = []
-        print("🎈🎈Start generating response ......")
-        for token in llm(
+    async def stream_response():
+        async for token in hf_stream_generate(
             chatml_prompt,
-            max_tokens=384,  # shorter and safer
-            temperature=0.25,
-            top_p=0.85,
-            repeat_penalty=1.05,
-            stream=True,
-            presence_penalty=0.3,
-            stop=['<|end|>',"<|user|>", "<|system|>", "\n\n\n"],
+            global_model,
+            global_tokenizer
         ):
-            chunk = token["choices"][0].get("text", "")
-            
-            print(chunk , end=" ")
-            if not chunk.strip():
-                continue
+            yield cleaner(token)
 
-            # accumulate raw chunk first
-            buffer += chunk
-
-            # if chunk ends with space or punctuation → treat buffer as a full word
-            if buffer.endswith((" ", ".", ",", "!", "?", ":", ";","\n", "\n\n", "-", "*")):
-                cleaned = cleaner(buffer)
-                yield cleaned
-                response_text += cleaned
-                buffer = ""  # reset buffer
-
-            await asyncio.sleep(0)
-
-        # flush remaining
-        if buffer:
-            cleaned = cleaner(buffer)
-            yield cleaned
-            response_text += cleaned
-            
     return StreamingResponse(
-    stream_response(),
-    media_type="text/plain",
-    headers={"Transfer-Encoding": "chunked"}
-)
+        stream_response(),
+        media_type="text/plain",
+        headers={"Transfer-Encoding": "chunked"}
+    )
+
 
 
 if __name__ == "__main__":
