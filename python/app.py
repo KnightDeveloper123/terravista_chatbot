@@ -672,10 +672,10 @@ def create_llm():
         # model_path='models/qwen2.5-1.5b-instruct-q4_k_m.gguf',
         n_ctx=4096,
         n_threads=8,
-        gpu_layers=9999,      # fully use GPU
-        n_batch=1024 , 
+        n_gpu_layers=-1,      # fully use GPU
+        n_batch=512 , 
         verbose=False
-    )
+    )       
     return llm
 
 embeddings = create_embeddings()
