@@ -124,11 +124,13 @@ def load_documents(file_path: str = DATA_FILE):
 # ========================================
 def create_embeddings():
     return HuggingFaceEmbeddings(
-        model_name="./models/all-MiniLM-L6-v2",
-        model_kwargs={"device": "cuda"},
+        model_name="/root/github/python_model/all-MiniLM-L6-v2",
+        model_kwargs={
+            "device": "cuda",
+            "local_files_only": True   # ← THIS FIXES SERVER ISSUE
+        },
         encode_kwargs={"normalize_embeddings": True},
     )
-    
 
 
 def build_vectorstore() -> FAISS:
