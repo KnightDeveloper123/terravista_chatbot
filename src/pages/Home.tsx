@@ -170,9 +170,9 @@ const Home: React.FC = () => {
                 // }
 
                 if (e.data === "end") {
-                    setAllChats((prev) => {
-                        console.log(collected);
+                    console.log(collected);
 
+                    setAllChats((prev) => {
                         const updated = [...prev];
                         const botIndex = updated.findIndex(c => c.sender === "bot" && c.message === "");
                         if (botIndex !== -1) updated[botIndex].message = collected;
@@ -390,8 +390,8 @@ const Home: React.FC = () => {
 
                 <Flex mt={2} borderRadius={'10px'} h={"calc(100vh - 108px)"} bg={'#dee9f1'}>
                     {!titleId ? <Flex h={'100%'} alignItems={'center'} justifyContent={'center'} flexDir={'column'} w={'100%'}>
-                        <Heading fontSize={'24px'} fontWeight={700} w={'50%'} textAlign={'center'}>Unleash AI with CiplaGPT Smarter Ideas and insights at your Fingertips</Heading>
-                        <Text mt={4} w={'70%'} color={'gray.600'} textAlign={'center'}>Turn imagination into impact with ChatGPT’s AI built to unlock endless possibilities and shape your ideas into intelligent results.</Text>
+                        <Heading fontSize={'24px'} fontWeight={700} w={'50%'} textAlign={'center'}>Unleash AI with SmartProperty assistant and insights at your Fingertips</Heading>
+                        <Text mt={4} w={'70%'} color={'gray.600'} textAlign={'center'}>Your intelligent real estate partner that understands your needs, recommends the best properties, and helps you book site visits instantly.</Text>
 
                         <Flex align="center" gap={2} mt={4} w={'70%'}>
                             <Textarea
@@ -517,14 +517,11 @@ const Home: React.FC = () => {
                                                                         // console.log('here', clean);
 
                                                                         return (
-                                                                            <a
-                                                                                key={i}
-                                                                                href={clean}
-                                                                                target="_blank"
+                                                                            <a key={i} href={clean} target="_blank"
                                                                                 rel="noopener noreferrer"
-                                                                                style={{ color: '#3182ce', textDecoration: 'underline' }}
+                                                                                style={{ color: '#fff', textDecoration: 'underline', fontWeight: 'bold' }}
                                                                             >
-                                                                                {clean}
+                                                                                Click Here
                                                                             </a>
                                                                         );
                                                                     }

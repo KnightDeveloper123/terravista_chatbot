@@ -10,6 +10,7 @@ import { Toaster } from './components/ui/toaster'
 import AdminLayout from './pages/admin/AdminLayout'
 import Dashboard from './pages/admin/Dashboard'
 import Users from './pages/admin/Users'
+import ScheduleMeeting from './pages/ScheduleMeeting'
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/auth/login" element={<Login />} />
         <Route path="/auth/register" element={<Register />} />
         <Route path="/home/:userId/:titleId?" element={<Home />} />
+        <Route path="/schedule-meeting/:userId" element={<ScheduleMeeting />} />
 
         <Route path="/admin/login" element={<AdminLogin />} />
         <Route path='/admin/*' element={<AdminLayout />}>
