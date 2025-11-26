@@ -35,24 +35,26 @@ load_dotenv()
 
 # ========================================
 # Paths and globals
-# ========================================
+# ======================================== 
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = "documents"
 EMB_PATH = "Embeddings"
 META_FILE = os.path.join(EMB_PATH, "meta.json")
-DATA_FILE = "documents/data1.txt"
+DATA_FILE = os.path.join(BASE_DIR , "documents" , "data1.txt")
 OUTPUT_DICT = "dictionary.txt"
-CONTEXT_FILE = "documents/context.txt"
+CONTEXT_FILE = os.path.join(BASE_DIR , "documents" ,"context.txt")
 MAX_CONTEXT_TURNS = 4
-REFERENCE_CLEANUP="documents/cleanup_reference.txt"
+
 
 SESSION_STATE = defaultdict(dict)  # per-session state: {"active_society": str}
 
 
 
 EMB_PATH = "Embeddings"
-EMB_FILE = os.path.join(EMB_PATH, "embeddings.npy")   # numeric embeddings
-TEXT_FILE = os.path.join(EMB_PATH, "texts.json")      # original document text
-META_FILE = os.path.join(EMB_PATH, "meta.json")       # timestamp + info
+EMB_FILE = os.path.join(BASE_DIR , EMB_PATH, "embeddings.npy")   # numeric embeddings
+TEXT_FILE = os.path.join(BASE_DIR , EMB_PATH, "texts.json")      # original document text
+META_FILE = os.path.join(BASE_DIR , EMB_PATH, "meta.json")       # timestamp + info
 
 # ========================================
 # Utilities
@@ -124,7 +126,7 @@ def load_documents(file_path: str = DATA_FILE):
 # ========================================
 def create_embeddings():
     return HuggingFaceEmbeddings(
-        model_name="/root/github/python_model/all-MiniLM-L6-v2",
+        model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
         model_kwargs={
             "device": "cuda",
             "local_files_only": True   # ← THIS FIXES SERVER ISSUE
@@ -645,7 +647,7 @@ def detect_greeting(text: str):
 #     low_cpu_mem_usage=True     # prevents model shards on CPU
 # )
 def create_llm():
-    model_path = "./models/Qwen2.5-3B-Instruct-GPTQ-Int4"
+    model_path = os.path.join(BASE_DIR , "models" , "Qwen2.5-3B-Instruct-GPTQ-Int4")
 
     tokenizer = AutoTokenizer.from_pretrained(model_path)
 
