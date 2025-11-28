@@ -701,6 +701,12 @@ async def hf_stream_generate(prompt, model, tokenizer):
             yield new_text
         await asyncio.sleep(0)
 
+def cut_at_stop_tokens(text, stop_tokens):
+    for tok in stop_tokens:
+        if tok in text:
+            text = text.split(tok)[0]
+    return text.strip()
+
 def hf_generate_full(prompt, model, tokenizer):
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
@@ -709,24 +715,25 @@ def hf_generate_full(prompt, model, tokenizer):
         attention_mask=inputs["attention_mask"],
         max_new_tokens=384,
         temperature=0.25,
-        top_p=1.05,
+        top_p=0.98,
         do_sample=False,
         use_cache=True
     )
 
     output_ids = model.generate(**gen_kwargs)
-
     # decode only newly generated tokens
     decoded = tokenizer.decode(
         output_ids[0][inputs["input_ids"].shape[-1]:],
-        skip_special_tokens=True
-    )
-
-    return decoded.strip()
+        skip_special_tokens=False  
+    ) 
+    stop_tokens = ["<|end|>", "<|assistant|>", "<|system|>"]
+    cleaned = cut_at_stop_tokens(decoded, stop_tokens)
+    return cleaned.strip()
 
 embeddings = create_embeddings()
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
+
 
 
 
@@ -736,15 +743,36 @@ parser = StrOutputParser()
 
 
 meeting_bot = MeetingSchedulerBot()
-MEETING_SESSION = {}
+MEETING_SESSION = {} 
+
+global_model, global_tokenizer = create_llm()
 # ========================================
 # FastAPI
 # ========================================
 app = FastAPI(title="Real Estate Chatbot")
 
-# app.mount("/public", StaticFiles(directory="documents"), name="public")
-global_tokenizer, global_model = create_llm()
+def extract_name_with_llm(text: str):
+    prompt = f"""
+            You are a strict name extraction engine.
+            Extract ONLY ONE human name from the sentence.
+            Choose the most clearly mentioned real human name.
+            If multiple names exist, return only the first human name found.
+            If no human name exists, return an empty string ("").
+
+            Output rule:
+            - Return ONLY the name. No commas.
+            - No sentences.
+            - No explanation.
+
+            Sentence: "{text}"
+
+            Now return only the name:
+            """
+    response = hf_generate_full(prompt , global_model , global_tokenizer)
+    return response.strip()
  
+ 
+# whatsapp api 
 @app.post("/get_info")
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
@@ -752,13 +780,22 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     title_id = (body or {}).get("title_id")
     query = (body or {}).get("query")
     user_id = (body or {}).get("user_id")
-
+    name = (body or {}).get("name") 
+    
     if title_id and title_id != LAST_TITLE_ID:
         reset_context()
         LAST_TITLE_ID = title_id
 
     session_id = get_session_id(request)
-
+    detected_names = extract_name_with_llm(query)   
+    print(detected_names)
+    if detected_names:
+        return JSONResponse({
+            "success": True,
+            "response": detected_names,
+            "type": "text"
+        }) 
+        
     if not query or not query.strip():
         return JSONResponse({
                         "success": False,
@@ -908,7 +945,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     <|assistant|>
     """ 
 
-        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+        
 
         return  JSONResponse({ 
                     "success": True,
@@ -957,7 +995,8 @@ User Query:
 """ 
 
 
-    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+    
 
     return JSONResponse({ 
             "success": True,
@@ -966,6 +1005,7 @@ User Query:
             })
 
 
+# web api 
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
@@ -1126,6 +1166,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
                 global_model,
                 global_tokenizer
             ):
+                if token in ['<|end|>' ,'<|assistant|>'  , '<|system|>']:
+                    break
+
                 yield cleaner(token)
 
         return StreamingResponse(
@@ -1142,7 +1185,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     # 🧩 Clean system message for DeepSeek model
     
-    from check import stream_response_from_api
+    from research.check import stream_response_from_api
 
     system_prompt = ( 
     "You are Arya — a warm, polite, and expert real-estate assistant. "
@@ -1185,6 +1228,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
             global_model,
             global_tokenizer
         ):
+            if token in ['<|end|>' ,'<|assistant|>'  , '<|system|>']:
+                    break
+
             yield cleaner(token)
 
     return StreamingResponse(
