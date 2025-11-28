@@ -9,7 +9,7 @@ import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request , Body
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse
+from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse , JSONResponse
 import sys, time
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
@@ -283,7 +283,7 @@ class SocietyFilteredRetriever:
         return (filtered + extras[:need])[: self.k]
 
 # ========================================
-# Chat history: fetch, select, format
+# Chat history: fetch, select, format 
 # ========================================
 
 
@@ -681,16 +681,17 @@ async def hf_stream_generate(prompt, model, tokenizer):
         attention_mask=inputs["attention_mask"],
         streamer=streamer,
         max_new_tokens=384,
-        temperature=0.25,
-        top_p=0.85,
-        do_sample=True,
+        temperature=0.25, 
+        top_p=1.05,
+        do_sample=False,
+        use_cache = True 
     )
 
     # Run generate() in background thread
     thread = threading.Thread(target=model.generate, kwargs=gen_kwargs)
     thread.start()
 
-    # Yield tokens as they come
+    # Yield tokens as tfromhey come
     for new_text in streamer:
         # skip if chunk is a special token
         if new_text in SKIP_TOKENS:
@@ -700,9 +701,33 @@ async def hf_stream_generate(prompt, model, tokenizer):
             yield new_text
         await asyncio.sleep(0)
 
+def hf_generate_full(prompt, model, tokenizer):
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    gen_kwargs = dict(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        max_new_tokens=384,
+        temperature=0.25,
+        top_p=1.05,
+        do_sample=False,
+        use_cache=True
+    )
+
+    output_ids = model.generate(**gen_kwargs)
+
+    # decode only newly generated tokens
+    decoded = tokenizer.decode(
+        output_ids[0][inputs["input_ids"].shape[-1]:],
+        skip_special_tokens=True
+    )
+
+    return decoded.strip()
+
 embeddings = create_embeddings()
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
+
 
 
 ## how we skipe the tokens like <|end|>
@@ -720,6 +745,221 @@ app = FastAPI(title="Real Estate Chatbot")
 # app.mount("/public", StaticFiles(directory="documents"), name="public")
 global_tokenizer, global_model = create_llm()
  
+@app.post("/get_info", methods=["POST"])
+async def ask_chat(request: Request ,  body: dict = Body(None)):
+    global LAST_TITLE_ID
+
+    title_id = (body or {}).get("title_id")
+    query = (body or {}).get("query")
+    user_id = (body or {}).get("user_id")
+
+    if title_id and title_id != LAST_TITLE_ID:
+        reset_context()
+        LAST_TITLE_ID = title_id
+
+    session_id = get_session_id(request)
+
+    if not query or not query.strip():
+        return JSONResponse({
+                        "success": False,
+                        "response": "<p>Please enter a query.</p>"
+                    }) 
+                        
+        
+    if is_brochure_request(query):
+        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        return JSONResponse({
+                        "success":True,
+                        "response": f'''<p>Broucher : 
+                        <br />
+                        <a href={brochure_path}>CLICK HERE</a>
+                        </p>'''.strip()
+                    }) 
+                       
+    
+    # ✅ INSERT GREETING HANDLER HERE
+    greeting_check = detect_greeting(query)
+    if greeting_check["is_greeting"] and greeting_check["response"]:
+        # Instead of streaming → return JSON
+        return JSONResponse({
+                        "success": True,
+                        "response": f"<p>{greeting_check['response']}</p>"
+                    }) 
+                       
+
+    # remove greeting prefix if needed
+    if not greeting_check["is_greeting"]:
+        for key in ["hi", "hello", "hey", "good morning", "good afternoon",
+                    "good evening", "namaste", "greetings"]:
+            if query.lower().startswith(key):
+                query = query[len(key):].strip(",.! ").strip()
+                break
+    
+    # Detect society and manage session
+    mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
+    if mentioned:
+        SESSION_STATE[session_id]["active_society"] = mentioned
+
+    if re.search(r"\b(reset|clear)\b.*\bsociety\b", query, re.I):
+        SESSION_STATE[session_id]["active_society"] = None
+
+    active_society = SESSION_STATE[session_id].get("active_society")
+
+    # Retrieve relevant context
+    retriever = SocietyFilteredRetriever(base_retriever, active_society, k=7)
+    docs = retriever.invoke(query)
+    ranked_docs = rerank.invoke({"docs": docs, "question": query})
+    context = format_docs(ranked_docs)
+
+    if len(context) > 3000:
+        context = context[:3000]
+        
+
+
+    # Load local and external chat history
+    if title_id not in [None, 0]:
+        full_history = fetch_chat_history(title_id)
+    else:
+        full_history = ""
+    local_context = load_context_file()
+    combined_history = (full_history or []) + local_context
+
+    selected_hist = select_relevant_history(
+        query,
+        combined_history,
+        embeddings,
+        k_similar=4,
+        last_n=4,
+        max_chars=2000,
+    ) or [] 
+    
+    
+
+    selected_hist.append({"user": query, "response": ""})
+    chat_history_text = format_history_for_prompt(selected_hist)
+
+    if len(chat_history_text) > 800:
+        chat_history_text = chat_history_text[-800:]
+  
+    if session_id not in MEETING_SESSION:
+        MEETING_SESSION[session_id] = MeetingSchedulerBot()
+
+    scheduler = MEETING_SESSION[session_id]
+    scheduler.user_id = user_id
+
+    if scheduler.awaiting in ["datetime", "purpose"]:
+        reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
+        return JSONResponse({
+                        "success": True,
+                        "response": f"<p>{reply}</p>"
+                    }) 
+                      
+
+    if is_meeting_request(query):
+        scheduler.reset_state()
+        reply = scheduler.respond(query)
+        return JSONResponse({
+                        "success": True,
+                        "response": f"<p>{reply}</p>"
+                    }) 
+                      
+    
+    last_char = ""  
+    def cleaner(text):
+        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
+    
+    
+    if len(context.strip()) < 10:
+        system_prompt = (
+        "You are Arya — a warm, polite, and expert real-estate assistant. "
+        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
+        "respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow"
+        "'How can I help you today?' or 'Would you like details about any project?'. "
+        "Your single source of truth is the section called 'Knowledge'. "
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+        "you must answer using that information directly and confidently."
+        "Do not ask for the project or developer again — use what is provided in Knowledge."
+        "Don't Use Certainly word in response"
+        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
+        "Avoid generic responses or repeating the user's query. "
+        "Be concise, accurate, and factual."
+    )
+        chatml_prompt = f"""
+    <|system|>
+    {system_prompt}
+    <|end|>
+    <|user|>
+
+    Chat History:
+    {chat_history_text}
+
+    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+    Knowledge:
+    {context}
+
+    User Query:
+    {query}
+    <|end|>
+    <|assistant|>
+    """ 
+
+        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+
+        return  JSONResponse({ 
+                    "success": True,
+                    "response": f"<p>{final_answer}</p>"
+        })
+        
+        
+    if  len(context)>10: 
+        append_context_to_file({"user": query, "response": context})
+ 
+
+    # 🧩 Clean system message for DeepSeek model
+
+    system_prompt = ( 
+    "You are Arya — a warm, polite, and expert real-estate assistant. "
+    "Your single source of truth is the section called 'Knowledge'. " 
+    "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
+    "you must answer using that information directly and confidently. "
+    "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
+    "Do not ask for the project or developer again — use what is provided in Knowledge. "
+    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
+    chatml_prompt = f"""
+<|system|>
+{system_prompt}
+<|end|>
+<|user|>
+Active Society: {active_society or "None"}
+
+Chat History:
+{chat_history_text}
+
+The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+Knowledge:
+{context}
+
+User Query:
+{query}
+<|end|>
+<|assistant|>
+""" 
+
+
+    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+
+    return JSONResponse({ 
+            "success": True,
+            "response": f"<p>{final_answer}</p>"
+            })
+
+
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
@@ -886,8 +1126,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
             stream_response(),
             media_type="text/plain",
             headers={"Transfer-Encoding": "chunked"}
-        )
-                
+        ) 
+        
+        
         
     if  len(context)>10: 
         append_context_to_file({"user": query, "response": context}) 
@@ -895,6 +1136,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     # 🧩 Clean system message for DeepSeek model
     
+    from check import stream_response_from_api
 
     system_prompt = ( 
     "You are Arya — a warm, polite, and expert real-estate assistant. "
@@ -930,8 +1172,6 @@ User Query:
 """ 
 
 
-        # complete_context_reference_set = chat_history_text +"\n" + context
-        # reference_words = build_reference_set(complete_context_reference_set)  
     last_char = ""
     async def stream_response():
         async for token in hf_stream_generate(
