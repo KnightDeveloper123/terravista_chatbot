@@ -762,7 +762,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if not query or not query.strip():
         return JSONResponse({
                         "success": False,
-                        "response": "<p>Please enter a query.</p>" , 
+                        "response": "Please enter a query." , 
                         "type": 'text'
                     }) 
                         
@@ -784,7 +784,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         # Instead of streaming → return JSON
         return JSONResponse({
                         "success": True,
-                        "response": f"<p>{greeting_check['response']}</p>" , 
+                        "response": greeting_check['response'], 
                         "type": 'text'
                     }) 
                        
@@ -853,7 +853,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
         return JSONResponse({
                         "success": True,
-                        "response": f"<p>{reply}</p>" , 
+                        "response":reply , 
                         "type": 'text'
                     }) 
                       
@@ -863,7 +863,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         reply = scheduler.respond(query)
         return JSONResponse({
                         "success": True,
-                        "response": f"<p>{reply}</p>" , 
+                        "response": reply , 
                         "type": 'text'
                     }) 
                       
@@ -912,7 +912,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
         return  JSONResponse({ 
                     "success": True,
-                    "response": f"<p>{final_answer}</p>" , 
+                    "response": final_answer , 
                     "type": 'text'
         })
         
@@ -961,7 +961,7 @@ User Query:
 
     return JSONResponse({ 
             "success": True,
-            "response": f"<p>{final_answer}</p>" , 
+            "response": final_answer , 
             "type": 'text'
             })
 
