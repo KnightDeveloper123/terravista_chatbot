@@ -745,7 +745,7 @@ app = FastAPI(title="Real Estate Chatbot")
 # app.mount("/public", StaticFiles(directory="documents"), name="public")
 global_tokenizer, global_model = create_llm()
  
-@app.post("/get_info", methods=["POST"])
+@app.post("/get_info")
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
 
@@ -1157,25 +1157,25 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
 
     chatml_prompt = f"""
-<|system|>
-{system_prompt}
-<|end|>
-<|user|>
-Active Society: {active_society or "None"}
+                    <|system|>
+                    {system_prompt}
+                    <|end|>
+                    <|user|>
+                    Active Society: {active_society or "None"}
 
-Chat History:
-{chat_history_text}
+                    Chat History:
+                    {chat_history_text}
 
-The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+                    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
 
-Knowledge:
-{context}
+                    Knowledge:
+                    {context}
 
-User Query:
-{query}
-<|end|>
-<|assistant|>
-""" 
+                    User Query:
+                    {query}
+                    <|end|>
+                    <|assistant|>
+                    """ 
 
 
     last_char = ""
