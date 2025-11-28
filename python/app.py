@@ -762,7 +762,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if not query or not query.strip():
         return JSONResponse({
                         "success": False,
-                        "response": "<p>Please enter a query.</p>"
+                        "response": "<p>Please enter a query.</p>" , 
+                        "type": 'text'
                     }) 
                         
         
@@ -770,10 +771,10 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
         return JSONResponse({
                         "success":True,
-                        "response": f'''<p>Broucher : 
-                        <br />
-                        <a href={brochure_path}>CLICK HERE</a>
-                        </p>'''.strip()
+                        "response":brochure_path , 
+                        "type": "document" , 
+                        "caption" : "This your Broucher " , 
+                        "filename" : "Broucher.pdf"
                     }) 
                        
     
@@ -783,7 +784,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         # Instead of streaming → return JSON
         return JSONResponse({
                         "success": True,
-                        "response": f"<p>{greeting_check['response']}</p>"
+                        "response": f"<p>{greeting_check['response']}</p>" , 
+                        "type": 'text'
                     }) 
                        
 
@@ -851,7 +853,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
         return JSONResponse({
                         "success": True,
-                        "response": f"<p>{reply}</p>"
+                        "response": f"<p>{reply}</p>" , 
+                        "type": 'text'
                     }) 
                       
 
@@ -860,7 +863,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         reply = scheduler.respond(query)
         return JSONResponse({
                         "success": True,
-                        "response": f"<p>{reply}</p>"
+                        "response": f"<p>{reply}</p>" , 
+                        "type": 'text'
                     }) 
                       
     
@@ -908,7 +912,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
         return  JSONResponse({ 
                     "success": True,
-                    "response": f"<p>{final_answer}</p>"
+                    "response": f"<p>{final_answer}</p>" , 
+                    "type": 'text'
         })
         
         
@@ -956,7 +961,8 @@ User Query:
 
     return JSONResponse({ 
             "success": True,
-            "response": f"<p>{final_answer}</p>"
+            "response": f"<p>{final_answer}</p>" , 
+            "type": 'text'
             })
 
 
