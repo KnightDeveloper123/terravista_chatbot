@@ -87,6 +87,8 @@ app.post("/webhook", async (req, res) => {
                         }
                         const { userId, titleId, name } = userDetails;
 
+                        console.log(userId, titleId, name);
+
                         const saveMessage = await saveChatMessage(titleId, text, "user");
                         if (saveMessage?.error) {
                             console.log("Error in saveChatMessage", saveMessage?.error)
