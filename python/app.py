@@ -800,7 +800,7 @@ async def ask_chat_info(request: Request, body: dict = Body(None)):
             "filename": "Brochure.pdf"
         })
 
-    # Greeting handler
+    
     greeting_check = detect_greeting(query)
     if greeting_check["is_greeting"] and greeting_check["response"]:
         return JSONResponse({
