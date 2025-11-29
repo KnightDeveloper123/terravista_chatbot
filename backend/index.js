@@ -3,6 +3,7 @@ const cors = require("cors");
 require('dotenv').config()
 const path = require("path");
 const { getOrCreateWhatsAppTitle, saveChatMessage, getAiReply } = require("./service/aiService");
+const { formatForWhatsApp } = require("./utils/variables");
 
 
 
@@ -61,6 +62,8 @@ app.get("/webhook", (req, res) => {
 
 app.post("/webhook", async (req, res) => {
     try {
+        res.sendStatus(200);
+
         const body = req.body;
 
         if (body.object === "whatsapp_business_account") {
@@ -68,62 +71,97 @@ app.post("/webhook", async (req, res) => {
             const changes = entry?.changes?.[0];
             const messages = changes?.value?.messages;
 
+
             if (messages && messages.length > 0) {
+                console.log("New Messasge: ", messages[0]?.text?.body, "length:", messages?.length)
+
                 const msg = messages[0];
                 const from = msg.from;
                 const text = msg.text?.body;
 
+                (async () => {
+                    try {
+                        const userDetails = await getOrCreateWhatsAppTitle(from);
+                        if (userDetails.error) {
+                            console.log("Error in getOrCreateWhatsAppTitle", userDetails.error)
+                        }
+                        const { userId, titleId, name } = userDetails;
 
-                const userDetails = await getOrCreateWhatsAppTitle("WhatsApp User", from);
-                if (userDetails.error) {
-                    console.log("Error in getOrCreateWhatsAppTitle", userDetails.error)
-                }
-                const { userId, titleId } = userDetails;
+                        const saveMessage = await saveChatMessage(titleId, text, "user");
+                        if (saveMessage?.error) {
+                            console.log("Error in saveChatMessage", saveMessage?.error)
+                        }
 
-                const saveMessage = await saveChatMessage(titleId, text, "user");
-                if (saveMessage?.error) {
-                    console.log("Error in saveChatMessage", saveMessage?.error)
-                }
+                        const aiRes = await getAiReply(titleId, userId, name, text);
 
-                const aiRes = await getAiReply(titleId, userId, text);
+                        if (aiRes.error) {
+                            console.log("Error in getAiReply", aiRes.error)
+                        }
 
+                        console.log("aiRes:", aiRes.success, aiRes.response);
+                        let wpPayload = null;
 
-                if (aiRes.error) {
-                    console.log("Error in getAiReply", aiRes.error)
-                }
-                const reply = aiRes?.data || "Sorry, I couldn't generate a reply.";
+                        if (aiRes.type === "document") {
+                            await saveChatMessage(titleId, `${aiRes.caption}: ${aiRes.response}`, "bot");
+                            wpPayload = {
+                                messaging_product: "whatsapp",
+                                to: from,
+                                type: "document",
+                                document: {
+                                    link: aiRes.response,
+                                    caption: aiRes.caption || "",
+                                    filename: aiRes.filename || "document"
+                                }
+                            };
+                        } else {
+                            await saveChatMessage(titleId, aiRes.response, "bot");
+                            wpPayload = {
+                                messaging_product: "whatsapp",
+                                to: from,
+                                type: "text",
+                                text: {
+                                    body: formatForWhatsApp(aiRes.response)
+                                }
+                            };
+                        }
 
-                await saveChatMessage(titleId, reply, "bot");
-
-                console.log("aiRes:", aiRes);
-
-                const wpRes = await fetch(`https://graph.facebook.com/v24.0/${process.env.PHONE_NUMBER_ID}/messages`, {
-                    method: "POST",
-                    headers: {
-                        "Authorization": "Bearer " + process.env.META_ACCESS_TOKEN,
-                        "Content-Type": "application/json"
-                    },
-                    body: JSON.stringify({
-                        messaging_product: "whatsapp",
-                        to: from,
-                        type: "text",
-                        text: { body: reply }
-                    })
-                });
-
-                const wpJson = await wpRes.json();
-                console.log("WHATSAPP API RESPONSE:", wpJson);
+                        const wpRes = await fetch(
+                            `https://graph.facebook.com/v24.0/${process.env.PHONE_NUMBER_ID}/messages`,
+                            {
+                                method: "POST",
+                                headers: {
+                                    "Authorization": "Bearer " + process.env.META_ACCESS_TOKEN,
+                                    "Content-Type": "application/json"
+                                },
+                                body: JSON.stringify(wpPayload)
+                            }
+                        );
+                        const wpJson = await wpRes.json();
+                        if (!wpRes.ok) {
+                            console.log("WHATSAPP API RESPONSE:", wpJson.messages[0]?.id);
+                            throw new Error("Failed to deliver message!");
+                        }
+                    } catch (err) {
+                        console.error("Background Process Error:", err);
+                    }
+                })();
             }
         }
-
-        res.sendStatus(200);
     } catch (error) {
         console.error("Webhook POST Error:", error);
         res.sendStatus(200);
     }
 });
 
+app.get("/test", async (req, res) => {
+    const data = await getAiReply(1, 11, "brochure")
+
+    return res.send(data);
+});
+
 const port = 7601;
 app.listen(port, () => {
     console.log(`http://localhost:${port}`)
 })
+
+// console.log(getAiReply(1, 11, "1bhk"))
