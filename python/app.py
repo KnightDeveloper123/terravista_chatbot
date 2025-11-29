@@ -24,7 +24,7 @@ from symspellpy import SymSpell
 # from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
 from difflib import SequenceMatcher
-from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer
+from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer , StoppingCriteria, StoppingCriteriaList
 import threading
 import torch
 from meeting import * 
@@ -128,7 +128,7 @@ def create_embeddings():
     return HuggingFaceEmbeddings(
         model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
         model_kwargs={
-            "device": "cuda",
+            "device": "cpu",
             "local_files_only": True   # ← THIS FIXES SERVER ISSUE
         },
         encode_kwargs={"normalize_embeddings": True},
@@ -660,10 +660,21 @@ def create_llm():
 
     return tokenizer, model
 
-SKIP_TOKENS = {
-    "<|end|>", "<|user|>", "<|assistant|>", "<|system|>",
-    "<s>", "</s>", "<unk>", "<pad>"
-}
+global_tokenizer, global_model = create_llm()
+STOP_WORDS = ["<|end|>", "<|im_end|>", "<|endoftext|>", "<|user|>", "<|model|>" , "User:" , "Assistant:" ,'user:','assistant:'] 
+stop_token_ids = [global_tokenizer.encode(w, add_special_tokens=False)[0] for w in STOP_WORDS]
+
+# Custom class to stop generation at the tensor level
+class StopOnTokens(StoppingCriteria):
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        # Check if the last generated token is in our list of stop tokens
+        if input_ids[0][-1] in stop_token_ids:
+            return True
+        return False
+
+# Initialize the stopping criteria list
+stopping_criteria = StoppingCriteriaList([StopOnTokens()]) 
+
 
 async def hf_stream_generate(prompt, model, tokenizer):
     # Tokenize properly
@@ -684,7 +695,8 @@ async def hf_stream_generate(prompt, model, tokenizer):
         temperature=0.25, 
         top_p=1.05,
         do_sample=False,
-        use_cache = True 
+        use_cache = True  , 
+        stopping_criteria=stopping_criteria 
     )
 
     # Run generate() in background thread
@@ -693,12 +705,19 @@ async def hf_stream_generate(prompt, model, tokenizer):
 
     # Yield tokens as tfromhey come
     for new_text in streamer:
+        should_stop = False
+        for bad_word in STOP_WORDS:
+            if bad_word in new_text:
+                # If a bad word is found inside the chunk, cut it off and stop
+                new_text = new_text.split(bad_word)[0]
+                should_stop = True
+                break
         # skip if chunk is a special token
-        if new_text in SKIP_TOKENS:
-            continue
-
-        if new_text.strip():
+        if new_text:
             yield new_text
+            
+        if should_stop:
+            break
         await asyncio.sleep(0)
 
 def hf_generate_full(prompt, model, tokenizer):
@@ -711,18 +730,20 @@ def hf_generate_full(prompt, model, tokenizer):
         temperature=0.25,
         top_p=1.05,
         do_sample=False,
-        use_cache=True
+        use_cache=True , 
+        stopping_criteria=stopping_criteria 
     )
 
     output_ids = model.generate(**gen_kwargs)
-
-    # decode only newly generated tokens
-    decoded = tokenizer.decode(
-        output_ids[0][inputs["input_ids"].shape[-1]:],
-        skip_special_tokens=True
-    )
-
-    return decoded.strip()
+    new_tokens = output_ids[0][inputs["input_ids"].shape[-1]:]
+    text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    
+    # Final cleanup just in case
+    for stop_word in STOP_WORDS:
+        if stop_word in text:
+            text = text.split(stop_word)[0]
+            
+    return text.strip()
 
 embeddings = create_embeddings()
 rerank = create_reranker(embeddings, top_k=5)
@@ -743,10 +764,14 @@ MEETING_SESSION = {}
 app = FastAPI(title="Real Estate Chatbot")
 
 # app.mount("/public", StaticFiles(directory="documents"), name="public")
-global_tokenizer, global_model = create_llm()
- 
+# global_tokenizer, global_model = create_llm()
+  
+##############
+# from check import generate_hf_response , generate_hf_stream_response  
+############## 
+
 @app.post("/get_info")
-async def ask_chat(request: Request ,  body: dict = Body(None)):
+async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
 
     title_id = (body or {}).get("title_id")
@@ -908,7 +933,8 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     <|assistant|>
     """ 
 
-        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+        # final_answer = generate_hf_response(chatml_prompt)
 
         return  JSONResponse({ 
                     "success": True,
@@ -957,7 +983,8 @@ User Query:
 """ 
 
 
-    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+    # final_answer = generate_hf_response(chatml_prompt)
 
     return JSONResponse({ 
             "success": True,
@@ -1035,7 +1062,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         context = context[:3000]
         
     ### Main LLM Call  
-    llm = global_model  
+    # llm = global_model  
 
     # Load local and external chat history
     if title_id!=None  and title_id!= 0: 
@@ -1126,7 +1153,10 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
                 global_model,
                 global_tokenizer
             ):
-                yield cleaner(token)
+                yield cleaner(token) 
+        # async def stream_response():
+        #     for chunk in generate_hf_stream_response(chatml_prompt):
+        #         yield chunk
 
         return StreamingResponse(
             stream_response(),
@@ -1142,7 +1172,6 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     # 🧩 Clean system message for DeepSeek model
     
-    from check import stream_response_from_api
 
     system_prompt = ( 
     "You are Arya — a warm, polite, and expert real-estate assistant. "
@@ -1186,6 +1215,9 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
             global_tokenizer
         ):
             yield cleaner(token)
+    # async def stream_response():
+    #     for chunk in generate_hf_stream_response(chatml_prompt):
+    #         yield chunk
 
     return StreamingResponse(
         stream_response(),
