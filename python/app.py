@@ -793,7 +793,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         
         
     if is_brochure_request(query):
-        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
         return JSONResponse({
                         "success":True,
                         "response":brochure_path , 
