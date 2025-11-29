@@ -9,7 +9,7 @@ import numpy as np
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request , Body
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse
+from fastapi.responses import StreamingResponse , PlainTextResponse , HTMLResponse , JSONResponse
 import sys, time
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.document_loaders import TextLoader
@@ -24,7 +24,7 @@ from symspellpy import SymSpell
 # from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
 from difflib import SequenceMatcher
-from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer
+from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer , StoppingCriteria, StoppingCriteriaList
 import threading
 import torch
 from meeting import * 
@@ -128,7 +128,7 @@ def create_embeddings():
     return HuggingFaceEmbeddings(
         model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
         model_kwargs={
-            "device": "cuda",
+            "device": "cpu",
             "local_files_only": True   # ← THIS FIXES SERVER ISSUE
         },
         encode_kwargs={"normalize_embeddings": True},
@@ -283,7 +283,7 @@ class SocietyFilteredRetriever:
         return (filtered + extras[:need])[: self.k]
 
 # ========================================
-# Chat history: fetch, select, format
+# Chat history: fetch, select, format 
 # ========================================
 
 
@@ -660,10 +660,21 @@ def create_llm():
 
     return tokenizer, model
 
-SKIP_TOKENS = {
-    "<|end|>", "<|user|>", "<|assistant|>", "<|system|>",
-    "<s>", "</s>", "<unk>", "<pad>"
-}
+global_tokenizer, global_model = create_llm()
+STOP_WORDS = ["<|end|>", "<|im_end|>", "<|endoftext|>", "<|user|>", "<|model|>" , "User:" , "Assistant:" ,'user:','assistant:'] 
+stop_token_ids = [global_tokenizer.encode(w, add_special_tokens=False)[0] for w in STOP_WORDS]
+
+# Custom class to stop generation at the tensor level
+class StopOnTokens(StoppingCriteria):
+    def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
+        # Check if the last generated token is in our list of stop tokens
+        if input_ids[0][-1] in stop_token_ids:
+            return True
+        return False
+
+# Initialize the stopping criteria list
+stopping_criteria = StoppingCriteriaList([StopOnTokens()]) 
+
 
 async def hf_stream_generate(prompt, model, tokenizer):
     # Tokenize properly
@@ -681,28 +692,63 @@ async def hf_stream_generate(prompt, model, tokenizer):
         attention_mask=inputs["attention_mask"],
         streamer=streamer,
         max_new_tokens=384,
-        temperature=0.25,
-        top_p=0.85,
-        do_sample=True,
+        temperature=0.25, 
+        top_p=1.05,
+        do_sample=False,
+        use_cache = True  , 
+        stopping_criteria=stopping_criteria 
     )
 
     # Run generate() in background thread
     thread = threading.Thread(target=model.generate, kwargs=gen_kwargs)
     thread.start()
 
-    # Yield tokens as they come
+    # Yield tokens as tfromhey come
     for new_text in streamer:
+        should_stop = False
+        for bad_word in STOP_WORDS:
+            if bad_word in new_text:
+                # If a bad word is found inside the chunk, cut it off and stop
+                new_text = new_text.split(bad_word)[0]
+                should_stop = True
+                break
         # skip if chunk is a special token
-        if new_text in SKIP_TOKENS:
-            continue
-
-        if new_text.strip():
+        if new_text:
             yield new_text
+            
+        if should_stop:
+            break
         await asyncio.sleep(0)
+
+def hf_generate_full(prompt, model, tokenizer):
+    inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
+
+    gen_kwargs = dict(
+        input_ids=inputs["input_ids"],
+        attention_mask=inputs["attention_mask"],
+        max_new_tokens=384,
+        temperature=0.25,
+        top_p=1.05,
+        do_sample=False,
+        use_cache=True , 
+        stopping_criteria=stopping_criteria 
+    )
+
+    output_ids = model.generate(**gen_kwargs)
+    new_tokens = output_ids[0][inputs["input_ids"].shape[-1]:]
+    text = tokenizer.decode(new_tokens, skip_special_tokens=True)
+    
+    # Final cleanup just in case
+    for stop_word in STOP_WORDS:
+        if stop_word in text:
+            text = text.split(stop_word)[0]
+            
+    return text.strip()
 
 embeddings = create_embeddings()
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
+
 
 
 ## how we skipe the tokens like <|end|>
@@ -718,8 +764,235 @@ MEETING_SESSION = {}
 app = FastAPI(title="Real Estate Chatbot")
 
 # app.mount("/public", StaticFiles(directory="documents"), name="public")
-global_tokenizer, global_model = create_llm()
+# global_tokenizer, global_model = create_llm()
+  
+##############
+# from check import generate_hf_response , generate_hf_stream_response  
+############## 
+
+@app.post("/get_info")
+async def ask_chat_info(request: Request ,  body: dict = Body(None)):
+    global LAST_TITLE_ID
+
+    title_id = (body or {}).get("title_id")
+    query = (body or {}).get("query")
+    user_id = (body or {}).get("user_id")
+
+    if title_id and title_id != LAST_TITLE_ID:
+        reset_context()
+        LAST_TITLE_ID = title_id
+
+    session_id = get_session_id(request)
+
+    if not query or not query.strip():
+        return JSONResponse({
+                        "success": False,
+                        "response": "Please enter a query." , 
+                        "type": 'text'
+                    }) 
+                        
+        
+    if is_brochure_request(query):
+        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        return JSONResponse({
+                        "success":True,
+                        "response":brochure_path , 
+                        "type": "document" , 
+                        "caption" : "This your Broucher " , 
+                        "filename" : "Broucher.pdf"
+                    }) 
+                       
+    
+    # ✅ INSERT GREETING HANDLER HERE
+    greeting_check = detect_greeting(query)
+    if greeting_check["is_greeting"] and greeting_check["response"]:
+        # Instead of streaming → return JSON
+        return JSONResponse({
+                        "success": True,
+                        "response": greeting_check['response'], 
+                        "type": 'text'
+                    }) 
+                       
+
+    # remove greeting prefix if needed
+    if not greeting_check["is_greeting"]:
+        for key in ["hi", "hello", "hey", "good morning", "good afternoon",
+                    "good evening", "namaste", "greetings"]:
+            if query.lower().startswith(key):
+                query = query[len(key):].strip(",.! ").strip()
+                break
+    
+    # Detect society and manage session
+    mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
+    if mentioned:
+        SESSION_STATE[session_id]["active_society"] = mentioned
+
+    if re.search(r"\b(reset|clear)\b.*\bsociety\b", query, re.I):
+        SESSION_STATE[session_id]["active_society"] = None
+
+    active_society = SESSION_STATE[session_id].get("active_society")
+
+    # Retrieve relevant context
+    retriever = SocietyFilteredRetriever(base_retriever, active_society, k=7)
+    docs = retriever.invoke(query)
+    ranked_docs = rerank.invoke({"docs": docs, "question": query})
+    context = format_docs(ranked_docs)
+
+    if len(context) > 3000:
+        context = context[:3000]
+        
+
+
+    # Load local and external chat history
+    if title_id not in [None, 0]:
+        full_history = fetch_chat_history(title_id)
+    else:
+        full_history = ""
+    local_context = load_context_file()
+    combined_history = (full_history or []) + local_context
+
+    selected_hist = select_relevant_history(
+        query,
+        combined_history,
+        embeddings,
+        k_similar=4,
+        last_n=4,
+        max_chars=2000,
+    ) or [] 
+    
+    
+
+    selected_hist.append({"user": query, "response": ""})
+    chat_history_text = format_history_for_prompt(selected_hist)
+
+    if len(chat_history_text) > 800:
+        chat_history_text = chat_history_text[-800:]
+  
+    if session_id not in MEETING_SESSION:
+        MEETING_SESSION[session_id] = MeetingSchedulerBot()
+
+    scheduler = MEETING_SESSION[session_id]
+    scheduler.user_id = user_id
+
+    if scheduler.awaiting in ["datetime", "purpose"]:
+        reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
+        return JSONResponse({
+                        "success": True,
+                        "response":reply , 
+                        "type": 'text'
+                    }) 
+                      
+
+    if is_meeting_request(query):
+        scheduler.reset_state()
+        reply = scheduler.respond(query)
+        return JSONResponse({
+                        "success": True,
+                        "response": reply , 
+                        "type": 'text'
+                    }) 
+                      
+    
+    last_char = ""  
+    def cleaner(text):
+        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
+    
+    
+    if len(context.strip()) < 10:
+        system_prompt = (
+        "You are Arya — a warm, polite, and expert real-estate assistant. "
+        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
+        "respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow"
+        "'How can I help you today?' or 'Would you like details about any project?'. "
+        "Your single source of truth is the section called 'Knowledge'. "
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+        "you must answer using that information directly and confidently."
+        "Do not ask for the project or developer again — use what is provided in Knowledge."
+        "Don't Use Certainly word in response"
+        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
+        "Avoid generic responses or repeating the user's query. "
+        "Be concise, accurate, and factual."
+    )
+        chatml_prompt = f"""
+    <|system|>
+    {system_prompt}
+    <|end|>
+    <|user|>
+
+    Chat History:
+    {chat_history_text}
+
+    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+    Knowledge:
+    {context}
+
+    User Query:
+    {query}
+    <|end|>
+    <|assistant|>
+    """ 
+
+        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+        # final_answer = generate_hf_response(chatml_prompt)
+
+        return  JSONResponse({ 
+                    "success": True,
+                    "response": final_answer , 
+                    "type": 'text'
+        })
+        
+        
+    if  len(context)>10: 
+        append_context_to_file({"user": query, "response": context})
  
+
+    # 🧩 Clean system message for DeepSeek model
+
+    system_prompt = ( 
+    "You are Arya — a warm, polite, and expert real-estate assistant. "
+    "Your single source of truth is the section called 'Knowledge'. " 
+    "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
+    "you must answer using that information directly and confidently. "
+    "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
+    "Do not ask for the project or developer again — use what is provided in Knowledge. "
+    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
+    chatml_prompt = f"""
+<|system|>
+{system_prompt}
+<|end|>
+<|user|>
+Active Society: {active_society or "None"}
+
+Chat History:
+{chat_history_text}
+
+The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+Knowledge:
+{context}
+
+User Query:
+{query}
+<|end|>
+<|assistant|>
+""" 
+
+
+    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+    # final_answer = generate_hf_response(chatml_prompt)
+
+    return JSONResponse({ 
+            "success": True,
+            "response": final_answer , 
+            "type": 'text'
+            })
+
+
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
@@ -789,7 +1062,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         context = context[:3000]
         
     ### Main LLM Call  
-    llm = global_model  
+    # llm = global_model  
 
     # Load local and external chat history
     if title_id!=None  and title_id!= 0: 
@@ -880,14 +1153,18 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
                 global_model,
                 global_tokenizer
             ):
-                yield cleaner(token)
+                yield cleaner(token) 
+        # async def stream_response():
+        #     for chunk in generate_hf_stream_response(chatml_prompt):
+        #         yield chunk
 
         return StreamingResponse(
             stream_response(),
             media_type="text/plain",
             headers={"Transfer-Encoding": "chunked"}
-        )
-                
+        ) 
+        
+        
         
     if  len(context)>10: 
         append_context_to_file({"user": query, "response": context}) 
@@ -909,29 +1186,27 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
 
     chatml_prompt = f"""
-<|system|>
-{system_prompt}
-<|end|>
-<|user|>
-Active Society: {active_society or "None"}
+                    <|system|>
+                    {system_prompt}
+                    <|end|>
+                    <|user|>
+                    Active Society: {active_society or "None"}
 
-Chat History:
-{chat_history_text}
+                    Chat History:
+                    {chat_history_text}
 
-The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+                    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
 
-Knowledge:
-{context}
+                    Knowledge:
+                    {context}
 
-User Query:
-{query}
-<|end|>
-<|assistant|>
-""" 
+                    User Query:
+                    {query}
+                    <|end|>
+                    <|assistant|>
+                    """ 
 
 
-        # complete_context_reference_set = chat_history_text +"\n" + context
-        # reference_words = build_reference_set(complete_context_reference_set)  
     last_char = ""
     async def stream_response():
         async for token in hf_stream_generate(
@@ -940,6 +1215,9 @@ User Query:
             global_tokenizer
         ):
             yield cleaner(token)
+    # async def stream_response():
+    #     for chunk in generate_hf_stream_response(chatml_prompt):
+    #         yield chunk
 
     return StreamingResponse(
         stream_response(),
