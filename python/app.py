@@ -770,7 +770,7 @@ app = FastAPI(title="Real Estate Chatbot")
 ############## 
 
 @app.post("/get_info")
-async def ask_chat_info(request: Request ,  body: dict = Body(None)):
+async def ask_chat_info(request: Request, body: dict = Body(None)):
     global LAST_TITLE_ID
 
     title_id = (body or {}).get("title_id")
@@ -785,41 +785,40 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
 
     if not query or not query.strip():
         return JSONResponse({
-                        "success": False,
-                        "response": "Please enter a query." , 
-                        "type": 'text'
-                    }) 
-                        
+            "success": False,
+            "response": "Please enter a query.",
+            "type": 'text'
+        })
+
     if is_brochure_request(query):
         brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
         return JSONResponse({
-                        "success":True,
-                        "response":brochure_path , 
-                        "type": "document" , 
-                        "caption" : "This your Broucher " , 
-                        "filename" : "Broucher.pdf"
-                    }) 
-                        
-    
-    #INSERT GREETING HANDLER HERE
+            "success": True,
+            "response": brochure_path,
+            "type": "document",
+            "caption": "This is your Brochure",
+            "filename": "Brochure.pdf"
+        })
+
+    # Greeting handler
     greeting_check = detect_greeting(query)
     if greeting_check["is_greeting"] and greeting_check["response"]:
-        # Instead of streaming → return JSON
         return JSONResponse({
-                        "success": True,
-                        "response": greeting_check['response'], 
-                        "type": 'text'
-                    }) 
-                        
+            "success": True,
+            "response": greeting_check['response'],
+            "type": 'text'
+        })
 
-    # remove greeting prefix if needed
-    if not greeting_check["is_greeting"]:
-        for key in ["hi", "hello", "hey", "good morning", "good afternoon",
-                    "good evening", "namaste", "greetings"]:
-            if query.lower().startswith(key):
-                query = query[len(key):].strip(",.! ").strip()
-                break
-    
+    # Remove greeting prefix if needed (only if there's more content after)
+    original_query = query
+    for key in ["hi", "hello", "hey", "good morning", "good afternoon",
+                "good evening", "namaste", "greetings"]:
+        if query.lower().startswith(key):
+            stripped = query[len(key):].strip(",.! ").strip()
+            if stripped:  # Only update if there's actual content after greeting
+                query = stripped
+            break
+
     # Detect society and manage session
     mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
     if mentioned:
@@ -844,14 +843,12 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
 
     if len(context_for_prompt) > 3000:
         context_for_prompt = context_for_prompt[:3000]
-        
-
 
     # Load local and external chat history
     if title_id not in [None, 0]:
         full_history = fetch_chat_history(title_id)
     else:
-        full_history = ""
+        full_history = []
     local_context = load_context_file()
     combined_history = (full_history or []) + local_context
 
@@ -860,18 +857,16 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
         combined_history,
         embeddings,
         k_similar=4,
-        last_n=2,  # reduced
+        last_n=2,
         max_chars=2000,
-    ) or [] 
-    
-    
+    ) or []
 
     selected_hist.append({"user": query, "response": ""})
     chat_history_text = format_history_for_prompt(selected_hist)
 
     if len(chat_history_text) > 800:
         chat_history_text = chat_history_text[-800:]
-  
+
     if session_id not in MEETING_SESSION:
         MEETING_SESSION[session_id] = MeetingSchedulerBot()
 
@@ -881,28 +876,22 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     if scheduler.awaiting in ["datetime", "purpose"]:
         reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
         return JSONResponse({
-                        "success": True,
-                        "response":reply , 
-                        "type": 'text'
-                    }) 
-                      
+            "success": True,
+            "response": reply,
+            "type": 'text'
+        })
 
     if is_meeting_request(query):
         scheduler.reset_state()
         reply = scheduler.respond(query)
         return JSONResponse({
-                        "success": True,
-                        "response": reply , 
-                        "type": 'text'
-                    }) 
-                      
-    last_char = ""  
-    def cleaner(text):
-        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
-    
+            "success": True,
+            "response": reply,
+            "type": 'text'
+        })
+
     # Build unified chatml prompt
-    chatml_prompt = f"""
-<|system|>
+    chatml_prompt = f"""<|system|>
 {UNIVERSAL_SYSTEM_PROMPT}
 <|end|>
 <|user|>
@@ -914,28 +903,66 @@ Chat History:
 Knowledge:
 {context_for_prompt}
 
-User Query:
-{query}
+User Query: {query}
 <|end|>
 <|assistant|>
 """
 
-    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
 
-    # If model returns empty or seems to invent, force a safe follow-up
+    # ====== COMPREHENSIVE CLEANUP ======
+    final_answer = final_answer.strip()
+    
+    # 1. Remove ALL special tokens and incomplete tags
+    final_answer = re.sub(r'<\|[^|]*\|>', '', final_answer)  # <|end|>, <|system|>
+    final_answer = re.sub(r'<\|[^|]*$', '', final_answer)     # Incomplete: <|end
+    final_answer = re.sub(r'<[^>]*$', '', final_answer)        # Incomplete: <
+    final_answer = re.sub(r'[<>|]+$', '', final_answer)        # Trailing: >, <, |
+    
+    # 2. Remove query echoes and prefixes
+    final_answer = re.sub(r'^(Query|User|Assistant):\s*', '', final_answer, flags=re.IGNORECASE)
+    final_answer = re.sub(r'\n(Query|User|Assistant):\s*', '\n', final_answer, flags=re.IGNORECASE)
+    
+    # 3. Remove lines that echo the query
+    query_lower = query.lower().strip()
+    lines = final_answer.split('\n')
+    cleaned_lines = []
+    
+    for line in lines:
+        line_stripped = line.strip()
+        line_lower = line_stripped.lower()
+        
+        # Skip empty lines, query echoes, or lines starting with "Query:"
+        if not line_stripped:
+            continue
+        if line_lower.startswith('query:'):
+            continue
+        if line_lower == query_lower:
+            continue
+        # Skip very similar lines (typos or slight variations)
+        if len(query_lower) > 3 and similarity(line_lower, query_lower) > 0.85:
+            continue
+            
+        cleaned_lines.append(line)
+    
+    final_answer = '\n'.join(cleaned_lines).strip()
+    
+    # 4. Final special character cleanup
+    final_answer = re.sub(r'[<>|]+$', '', final_answer).strip()
+    
+    # If model returns empty or too short after cleanup
     if not final_answer or len(final_answer.strip()) < 3:
         return JSONResponse({
-                    "success": True,
-                    "response": "I don't have enough information to answer precisely. Could you please provide the location, project name or BHK you're interested in?" , 
-                    "type": 'text'
+            "success": True,
+            "response": "I don't have enough information to answer precisely. Could you please provide the location, project name or BHK you're interested in?",
+            "type": 'text'
         })
-        
-    return  JSONResponse({ 
-                "success": True,
-                "response": final_answer , 
-                "type": 'text'
+
+    return JSONResponse({
+        "success": True,
+        "response": final_answer,
+        "type": 'text'
     })
-        
         
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
@@ -1065,9 +1092,6 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     # Build unified chatml prompt
     chatml_prompt = f"""
 <|system|>
-{UNIVERSAL_SYSTEM_PROMPT}
-<|end|>
-<|user|>
 Active Society: {active_society or "None"}
 
 Chat History:
@@ -1078,8 +1102,6 @@ Knowledge:
 
 User Query:
 {query}
-<|end|>
-<|assistant|>
 """
 
     async def stream_response():
