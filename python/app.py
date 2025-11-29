@@ -575,42 +575,43 @@ def similarity(a: str, b: str) -> float:
 
 def detect_greeting(text: str):
     """Return greeting type and whether it's a standalone greeting"""
+
+    # ---------- HARD BLOCK AGAINST NON-GREETING QUESTIONS ----------
+    # If these words appear → NOT a greeting
+    wh_words = ["who", "what", "why", "which", "whose", "whom", "where"]
+    task_words = ["generate", "answer", "explain", "property", "details", "information"]
+
+    lower = text.lower().strip()
+
+    if any(w in lower.split() for w in wh_words):
+        return {"is_greeting": False, "response": None}
+
+    if any(w in lower for w in task_words):
+        return {"is_greeting": False, "response": None}
+    # ---------------------------------------------------------------
+
     responses_map = {
-        "hello": "Hello! How i can Help you?",
-        "hi": "Hi there! How i can help you?",
-        "hey": "Hey! I'm here",
-        "greetings": "Greetings! How may I be of service?",
+        "hello": "Hello! How can I help you?",
+        "hi": "Hi there! How can I help you?",
+        "hey": "Hey! I'm here to assist you.",
         "good morning": "Good morning! How can I help you today?",
         "good afternoon": "Good afternoon! What would you like to know?",
         "good evening": "Good evening! How may I assist you?",
-        "good day": "Good day to you! How can I help?",
-        "what's up": "Not much, just ready to help you! What do you need?",
-        "how are you": "I'm doing well, thank you! How can I help you today?",
-        "morning": "Good morning! How can I assist you today?",
-        "afternoon": "Good afternoon! How may I help you?",
-        "evening": "Good evening! What can I do for you?",
-        "good night": "Good night! Is there anything I can help you with before you go?",
-        "howdy": "Howdy! What can I help you with today?",
-        "yo": "Hello! How may I assist you?",
-        "hi there": "Hi there! How can I help you?",
-        "hello there": "Hello there! What would you like to know?",
-        "good to see you": "Good to see you too! How can I assist you today?",
-        "nice to see you": "Nice to see you as well! What can I help you with?",
-        "long time no see": "Hello! It's good to connect with you again. How may I help?",
-        "what's new": "Nothing much here! How can I assist you today?",
-        "how's it going": "Things are going well! How may I help you?",
-        "how have you been": "I've been doing great, thank you for asking! How can I assist you?",
-        "hope you're well": "Thank you for asking! I'm here and ready to help. What do you need?",
-        "good to meet you": "Good to meet you too! How may I be of service?",
-        "pleased to meet you": "Pleased to meet you as well! What can I help you with today?",
-        "welcome": "Thank you! How can I assist you?",
-        "hey there": "Hey there! I'm ready to help. What do you need?",
-        "what's happening": "Not much on my end! How can I help you today?",
-        "namaste": "Namaste! How may I be of service?",
-       "thanks": "You're welcome! Happy to help! 😊",
-    "thank you": "Thank you! I'm glad I could assist you!",
-   
+        "namaste": "Namaste! How may I help you?",
+        "thanks": "You're welcome! 😊",
+        "thank you": "Thank you! Happy to assist!",
+        "how are you": "I'm doing well, thank you! How can I help you today?"
     }
+
+    def normalize_text(text):
+        text = text.lower().strip()
+        text = re.sub(r'(.)\1{2,}', r'\1', text)
+        text = re.sub(r'[^a-z\s]', '', text)
+        return text
+
+    def similarity(a, b):
+        from difflib import SequenceMatcher
+        return SequenceMatcher(None, a, b).ratio()
 
     normalized = normalize_text(text)
     best_match = None
@@ -622,19 +623,19 @@ def detect_greeting(text: str):
             best_score = score
             best_match = (key_greeting, response_message)
 
-    # Detect if greeting word exists in start of message
+    # detect if greeting is first word
     greeting_found = any(key in normalized.split()[:3] for key in responses_map)
 
-    # If the message is *only* a greeting → respond immediately
+    # message is ONLY a greeting
     if len(normalized.split()) <= 3 and (best_score >= 0.6 or greeting_found):
         return {"is_greeting": True, "response": best_match[1]}
 
-    #  If greeting present + other intent words → skip greeting
+    # greeting exists but message is longer → skip
     if greeting_found or best_score >= 0.6:
         return {"is_greeting": False, "response": None}
 
-    # Not a greeting at all
     return {"is_greeting": False, "response": None}
+
  
 #========================================================= 
 
