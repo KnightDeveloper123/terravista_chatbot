@@ -50,6 +50,7 @@ MAX_CONTEXT_TURNS = 4
 SESSION_STATE = defaultdict(dict)  # per-session state: {"active_society": str}
 
 
+
 EMB_PATH = "Embeddings"
 EMB_FILE = os.path.join(BASE_DIR , EMB_PATH, "embeddings.npy")   # numeric embeddings
 TEXT_FILE = os.path.join(BASE_DIR , EMB_PATH, "texts.json")      # original document text
@@ -83,8 +84,9 @@ def format_docs(docs) -> str:
 def get_session_id(request: Request) -> str:
     return request.headers.get("x-session-id") or request.client.host or "anon"
 
+# ========================================
 # Society name detection and tagging
-
+# ========================================
 SOCIETY_KEYWORDS = (
     "society","apartment","apartments","residency","residences","heights",
     "homes","estate","OneWorld developers","Galaxy Developers","Sobha Limited","Panchshil Realty","Lodha Group","galaxy","apex"
@@ -285,8 +287,8 @@ class SocietyFilteredRetriever:
 # ========================================
 
 
-# Modified history fetcher (sync call allowed inside async)
-def fetch_chat_history(title_id, max_pairs=4):  #  set number of turns you want
+# ✅ Modified history fetcher (sync call allowed inside async)
+def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you want
     if not title_id:
         return []
 
@@ -309,18 +311,18 @@ def fetch_chat_history(title_id, max_pairs=4):  #  set number of turns you want
                     continue
 
                 if sender == "user":
-                    #  Start new pair if a user message arrives
+                    # ✅ Start new pair if a user message arrives
                     temp_user_msg = message
 
                 elif sender == "bot":
-                    #  If bot replies, pair with last user message
+                    # ✅ If bot replies, pair with last user message
                     chat_pairs.append({
                         "user": temp_user_msg or "",
                         "response": message
                     })
                     temp_user_msg = None
 
-        # Return last N conversation turns (not only one)
+        # ✅ Return last N conversation turns (not only one)
         return chat_pairs[-max_pairs:]
 
     except Exception as e:
@@ -346,18 +348,18 @@ def fetch_chat_history_local(title_id):
                     continue
 
                 if sender == "user":
-                    #  Start new pair if a user message arrives
+                    # ✅ Start new pair if a user message arrives
                     temp_user_msg = message
 
                 elif sender == "bot":
-                    # If bot replies, pair with last user message
+                    # ✅ If bot replies, pair with last user message
                     chat_pairs.append({
                         "user": temp_user_msg or "",
                         "response": message
                     })
                     temp_user_msg = None
 
-        #  Return last N conversation turns (not only one)
+        # ✅ Return last N conversation turns (not only one)
         return chat_pairs[-6:]
 
     except Exception as e:
@@ -370,7 +372,7 @@ def select_relevant_history(
     history: List[Dict[str, str]],
     embeddings,
     k_similar: int = 4,
-    last_n: int = 2,  # Reduced to last 2 turns to keep prompt short
+    last_n: int = 4,
     max_chars: int = 1800,
 ) -> List[Dict[str, str]]:
     """
@@ -410,8 +412,8 @@ def select_relevant_history(
     def fmt(hist):
         lines = []
         for h in hist:
-            u = h.get("user","" ).strip()
-            a = h.get("response","" ).strip()
+            u = h.get("user","").strip()
+            a = h.get("response","").strip()
             if u:
                 lines.append(f"User: {u}")
             if a:
@@ -436,8 +438,8 @@ def format_history_for_prompt(hist: List[Dict[str, str]]) -> str:
         return ""
     parts = []
     for h in hist:
-        u = h.get("user","" ).strip()
-        a = h.get("response","" ).strip()
+        u = h.get("user","").strip()
+        a = h.get("response","").strip()
         if u:
             parts.append(f"User: {u}")
         if a:
@@ -483,23 +485,23 @@ def reset_context():
 # ========================================
 # Prompt and LLM
 # ========================================
-# Create one universal system prompt used by both endpoints
-UNIVERSAL_SYSTEM_PROMPT = (
-    "You are Arya, a professional real-estate assistant.\n"
-    "Rules:\n"
-    "• Answer ONLY using the Knowledge section.\n"
-    "• If Knowledge is EMPTY, ask ONE specific follow-up question.\n"
-    "• NEVER invent details or fabricate numbers.\n"
-    "• Preserve numbers exactly as written in Knowledge.\n"
-    "• Keep answers concise, factual, and polite.\n"
-    "• Do NOT create new Q/A pairs in your output (do not prefix with 'User:' or 'Assistant:' in the reply).\n"
-)
-
-
 def create_prompt():
-    # Use a single source of truth for prompts (ChatPromptTemplate is kept for compatibility)
     return ChatPromptTemplate.from_messages([
-        ("system", UNIVERSAL_SYSTEM_PROMPT + "\nActive Society: {active_society}\n\nChat History (selected):\n{chat_history}\n\nKnowledge:\n{context}\n"),
+        ("system",
+         "You are a polite, concise, highly accurate real estate assistant named Arya.\n"
+         "Rules:\n"
+         "• If the user greets (hi/hello/hey/good morning/etc.), respond with a short friendly greeting, then ask how you can help with real estate.\n"
+         "• Otherwise, DO NOT greet repeatedly. Answer the query directly and move the conversation forward.\n"
+         "• Use ONLY the information in Knowledge and the limited Chat History for continuity.\n"
+         "• If Knowledge is empty or insufficient for the request, ask a SPECIFIC follow-up to gather exactly what’s missing (e.g., location, BHK, budget, possession timeline) — do not repeat the same generic question.\n"
+         "• If the question is unrelated to real estate, reply: 'I can only help with real estate-related questions.'\n"
+         "• Do not mention 'Knowledge', 'documents', or 'sources'.\n"
+         "• For direct factual requests, answer directly using Knowledge.\n"
+         "• Keep responses SHORT and CLEAR. Always respond in English.\n\n"
+         "Active Society: {active_society}\n\n"
+         "Chat History (selected):\n{chat_history}\n\n"
+         "Knowledge:\n{context}"
+        ),
         ("human", "{question}")
     ])
 
@@ -517,7 +519,7 @@ def build_reference_set(text: str):
     return reference_set
 
 def smart_fix_spaces_dynamic(text: str, reference_words: set = None) -> str:
-    #  Fix numeric spacing (numbers, decimals, ranges, times) ---
+    # --- 1️⃣ Fix numeric spacing (numbers, decimals, ranges, times) ---
     text = re.sub(r'(?<=\d)\s+(?=\d)', '', text)           # 1 0 → 10
     text = re.sub(r'(\d)\s*:\s*(\d)', r'\1:\2', text)      # 10 : 90 → 10:90
     text = re.sub(r'(\d)\s*\.\s*(\d)', r'\1.\2', text)     # ₹1 . 5 → ₹1.5
@@ -525,16 +527,16 @@ def smart_fix_spaces_dynamic(text: str, reference_words: set = None) -> str:
     text = re.sub(r'([₹])\s*([0-9])', r'\1\2', text)       # ₹ 95 → ₹95
     text = re.sub(r'(\d)(\s*)(lakhs|crores)', r'\1 \3', text, flags=re.IGNORECASE)
 
-    # Fix common real-estate patterns ---
+    # --- 2️⃣ Fix common real-estate patterns ---
     text = re.sub(r'(\d)\s*B\s*H\s*K', r'\1BHK', text, flags=re.IGNORECASE)
     text = re.sub(r'(\d)\s*BHK', r'\1BHK', text, flags=re.IGNORECASE)
     text = re.sub(r'\bQ\s*([1-4])\s*([0-9]{4})\b', r'Q\1 \2', text)  # Q 42026 → Q4 2026
     text = re.sub(r'\b(\d+)\s*(sq\s*ft|SQ\s*FT|Sq\s*Ft)\b', r'\1 sq ft', text, flags=re.IGNORECASE)
 
-    # Fix names like "Mr. Ak ash" ---
+    # --- 3️⃣ Fix names like "Mr. Ak ash" ---
     text = re.sub(r'\b(Mr|Ms|Mrs|Dr)\.\s+([A-Z])\s+([a-z]+)', r'\1. \2\3', text)
 
-    #  Fix URL / domain spacing ---
+    # --- 4️⃣ Fix URL / domain spacing ---
     text = re.sub(r'https\s*:\s*/\s*/\s*', 'https://', text)
     text = re.sub(r'www\s*\.\s*', 'www.', text)
     text = re.sub(r'\s*\.\s*com', '.com', text)
@@ -542,14 +544,14 @@ def smart_fix_spaces_dynamic(text: str, reference_words: set = None) -> str:
     text = re.sub(r'\s*\.\s*org', '.org', text)
     text = re.sub(r'\s*\.\s*net', '.net', text)
 
-    #  Context-based joining (reliable only for long words) ---
+    # --- 5️⃣ Context-based joining (reliable only for long words) ---
     if reference_words:
         for word in sorted(reference_words, key=len, reverse=True):
             if len(word) >= 4:
                 pattern = r'\b' + r'\s*'.join(list(word)) + r'\b'
                 text = re.sub(pattern, word, text, flags=re.IGNORECASE)
 
-    #General punctuation & space cleanup ---
+    # --- 6️⃣ General punctuation & space cleanup ---
     text = re.sub(r'\s+([.,!?;:])', r'\1', text)  # no space before punctuation
     text = re.sub(r'([.,!?;:])([A-Za-z0-9])', r'\1 \2', text)  # ensure space after punctuation
     text = re.sub(r'\s{2,}', ' ', text)  # collapse multiple spaces
@@ -575,32 +577,41 @@ def similarity(a: str, b: str) -> float:
 
 def detect_greeting(text: str):
     """Return greeting type and whether it's a standalone greeting"""
-
-    # ---------- HARD BLOCK AGAINST NON-GREETING QUESTIONS ----------
-    # If these words appear → NOT a greeting
-    wh_words = ["who", "what", "why", "which", "whose", "whom", "where", "when", "how"]
-    task_words = ["generate", "answer", "explain", "property", "details", "information", "about", "yourself", "help", "assist"]
-
-    lower = text.lower().strip()
-
-    # Check if ANY wh-word exists as a standalone word
-    if any(f" {w} " in f" {lower} " or lower.startswith(f"{w} ") for w in wh_words):
-        return {"is_greeting": False, "response": None}
-
-    if any(w in lower for w in task_words):
-        return {"is_greeting": False, "response": None}
-    # ---------------------------------------------------------------
-
     responses_map = {
-        "hello": "Hello! How can I help you?",
-        "hi": "Hi there! How can I help you?",
-        "hey": "Hey! I'm here to assist you.",
+        "hello": "Hello! How i can Help you?",
+        "hi": "Hi there! How i can help you?",
+        "hey": "Hey! I'm here",
+        "greetings": "Greetings! How may I be of service?",
         "good morning": "Good morning! How can I help you today?",
         "good afternoon": "Good afternoon! What would you like to know?",
         "good evening": "Good evening! How may I assist you?",
-        "namaste": "Namaste! How may I help you?",
-        "thanks": "You're welcome! 😊",
-        "thank you": "Thank you! Happy to assist!"
+        "good day": "Good day to you! How can I help?",
+        "what's up": "Not much, just ready to help you! What do you need?",
+        "how are you": "I'm doing well, thank you! How can I help you today?",
+        "morning": "Good morning! How can I assist you today?",
+        "afternoon": "Good afternoon! How may I help you?",
+        "evening": "Good evening! What can I do for you?",
+        "good night": "Good night! Is there anything I can help you with before you go?",
+        "howdy": "Howdy! What can I help you with today?",
+        "yo": "Hello! How may I assist you?",
+        "hi there": "Hi there! How can I help you?",
+        "hello there": "Hello there! What would you like to know?",
+        "good to see you": "Good to see you too! How can I assist you today?",
+        "nice to see you": "Nice to see you as well! What can I help you with?",
+        "long time no see": "Hello! It's good to connect with you again. How may I help?",
+        "what's new": "Nothing much here! How can I assist you today?",
+        "how's it going": "Things are going well! How may I help you?",
+        "how have you been": "I've been doing great, thank you for asking! How can I assist you?",
+        "hope you're well": "Thank you for asking! I'm here and ready to help. What do you need?",
+        "good to meet you": "Good to meet you too! How may I be of service?",
+        "pleased to meet you": "Pleased to meet you as well! What can I help you with today?",
+        "welcome": "Thank you! How can I assist you?",
+        "hey there": "Hey there! I'm ready to help. What do you need?",
+        "what's happening": "Not much on my end! How can I help you today?",
+        "namaste": "Namaste! How may I be of service?",
+       "thanks": "You're welcome! Happy to help! 😊",
+    "thank you": "Thank you! I'm glad I could assist you!",
+   
     }
 
     normalized = normalize_text(text)
@@ -613,19 +624,19 @@ def detect_greeting(text: str):
             best_score = score
             best_match = (key_greeting, response_message)
 
-    # detect if greeting is first word
+    # Detect if greeting word exists in start of message
     greeting_found = any(key in normalized.split()[:3] for key in responses_map)
 
-    # message is ONLY a greeting
+    # 1️⃣ If the message is *only* a greeting → respond immediately
     if len(normalized.split()) <= 3 and (best_score >= 0.6 or greeting_found):
         return {"is_greeting": True, "response": best_match[1]}
 
-    # greeting exists but message is longer → skip
+    # 2️⃣ If greeting present + other intent words → skip greeting
     if greeting_found or best_score >= 0.6:
         return {"is_greeting": False, "response": None}
 
+    # 3️⃣ Not a greeting at all
     return {"is_greeting": False, "response": None}
-
  
 #========================================================= 
 
@@ -650,24 +661,13 @@ def create_llm():
     return tokenizer, model
 
 global_tokenizer, global_model = create_llm()
-# Keep STOP_WORDS minimal and compatible with model vocabulary
-STOP_WORDS = ["<|end|>"] 
-# Safe creation of stop token ids - ignore if encoding fails
-stop_token_ids = []
-for w in STOP_WORDS:
-    try:
-        enc = global_tokenizer.encode(w, add_special_tokens=False)
-        if enc:
-            stop_token_ids.append(enc[0])
-    except Exception:
-        pass
+STOP_WORDS = ["<|end|>", "<|im_end|>", "<|endoftext|>", "<|user|>", "<|model|>" , "User:" , "Assistant:" ,'user:','assistant:'] 
+stop_token_ids = [global_tokenizer.encode(w, add_special_tokens=False)[0] for w in STOP_WORDS]
 
-# Custom class to stop generation at the tensor level (uses token ids if available)
+# Custom class to stop generation at the tensor level
 class StopOnTokens(StoppingCriteria):
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor, **kwargs) -> bool:
-        # If we couldn't map stop tokens to ids, rely on text-level cutoffs elsewhere
-        if not stop_token_ids:
-            return False
+        # Check if the last generated token is in our list of stop tokens
         if input_ids[0][-1] in stop_token_ids:
             return True
         return False
@@ -750,6 +750,7 @@ rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
 
 
+
 ## how we skipe the tokens like <|end|>
 
 parser = StrOutputParser() 
@@ -770,7 +771,7 @@ app = FastAPI(title="Real Estate Chatbot")
 ############## 
 
 @app.post("/get_info")
-async def ask_chat_info(request: Request, body: dict = Body(None)):
+async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
 
     title_id = (body or {}).get("title_id")
@@ -785,40 +786,42 @@ async def ask_chat_info(request: Request, body: dict = Body(None)):
 
     if not query or not query.strip():
         return JSONResponse({
-            "success": False,
-            "response": "Please enter a query.",
-            "type": 'text'
-        })
-
+                        "success": False,
+                        "response": "Please enter a query." , 
+                        "type": 'text'
+                    }) 
+                        
+        
     if is_brochure_request(query):
-        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
+        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
         return JSONResponse({
-            "success": True,
-            "response": brochure_path,
-            "type": "document",
-            "caption": "This is your Brochure",
-            "filename": "Brochure.pdf"
-        })
-
+                        "success":True,
+                        "response":brochure_path , 
+                        "type": "document" , 
+                        "caption" : "This your Broucher " , 
+                        "filename" : "Broucher.pdf"
+                    }) 
+                       
     
+    # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
     if greeting_check["is_greeting"] and greeting_check["response"]:
+        # Instead of streaming → return JSON
         return JSONResponse({
-            "success": True,
-            "response": greeting_check['response'],
-            "type": 'text'
-        })
+                        "success": True,
+                        "response": greeting_check['response'], 
+                        "type": 'text'
+                    }) 
+                       
 
-    # Remove greeting prefix if needed (only if there's more content after)
-    original_query = query
-    for key in ["hi", "hello", "hey", "good morning", "good afternoon",
-                "good evening", "namaste", "greetings"]:
-        if query.lower().startswith(key):
-            stripped = query[len(key):].strip(",.! ").strip()
-            if stripped:  # Only update if there's actual content after greeting
-                query = stripped
-            break
-
+    # remove greeting prefix if needed
+    if not greeting_check["is_greeting"]:
+        for key in ["hi", "hello", "hey", "good morning", "good afternoon",
+                    "good evening", "namaste", "greetings"]:
+            if query.lower().startswith(key):
+                query = query[len(key):].strip(",.! ").strip()
+                break
+    
     # Detect society and manage session
     mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
     if mentioned:
@@ -835,20 +838,16 @@ async def ask_chat_info(request: Request, body: dict = Body(None)):
     ranked_docs = rerank.invoke({"docs": docs, "question": query})
     context = format_docs(ranked_docs)
 
-    # Ensure we pass explicit EMPTY marker if no knowledge
-    if not context or len(context.strip()) < 10:
-        context_for_prompt = "(EMPTY)"
-    else:
-        context_for_prompt = context
+    if len(context) > 3000:
+        context = context[:3000]
+        
 
-    if len(context_for_prompt) > 3000:
-        context_for_prompt = context_for_prompt[:3000]
 
     # Load local and external chat history
     if title_id not in [None, 0]:
         full_history = fetch_chat_history(title_id)
     else:
-        full_history = []
+        full_history = ""
     local_context = load_context_file()
     combined_history = (full_history or []) + local_context
 
@@ -857,16 +856,18 @@ async def ask_chat_info(request: Request, body: dict = Body(None)):
         combined_history,
         embeddings,
         k_similar=4,
-        last_n=2,
+        last_n=4,
         max_chars=2000,
-    ) or []
+    ) or [] 
+    
+    
 
     selected_hist.append({"user": query, "response": ""})
     chat_history_text = format_history_for_prompt(selected_hist)
 
     if len(chat_history_text) > 800:
         chat_history_text = chat_history_text[-800:]
-
+  
     if session_id not in MEETING_SESSION:
         MEETING_SESSION[session_id] = MeetingSchedulerBot()
 
@@ -876,23 +877,93 @@ async def ask_chat_info(request: Request, body: dict = Body(None)):
     if scheduler.awaiting in ["datetime", "purpose"]:
         reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
         return JSONResponse({
-            "success": True,
-            "response": reply,
-            "type": 'text'
-        })
+                        "success": True,
+                        "response":reply , 
+                        "type": 'text'
+                    }) 
+                      
 
     if is_meeting_request(query):
         scheduler.reset_state()
         reply = scheduler.respond(query)
         return JSONResponse({
-            "success": True,
-            "response": reply,
-            "type": 'text'
-        })
+                        "success": True,
+                        "response": reply , 
+                        "type": 'text'
+                    }) 
+                      
+    
+    last_char = ""  
+    def cleaner(text):
+        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
+    
+    
+    if len(context.strip()) < 10:
+        system_prompt = (
+        "You are Arya — a warm, polite, and expert real-estate assistant. "
+        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
+        "respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow"
+        "'How can I help you today?' or 'Would you like details about any project?'. "
+        "Your single source of truth is the section called 'Knowledge'. "
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+        "you must answer using that information directly and confidently."
+        "Do not ask for the project or developer again — use what is provided in Knowledge."
+        "Don't Use Certainly word in response"
+        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
+        "Avoid generic responses or repeating the user's query. "
+        "Be concise, accurate, and factual."
+    )
+        chatml_prompt = f"""
+    <|system|>
+    {system_prompt}
+    <|end|>
+    <|user|>
 
-    # Build unified chatml prompt
-    chatml_prompt = f"""<|system|>
-{UNIVERSAL_SYSTEM_PROMPT}
+    Chat History:
+    {chat_history_text}
+
+    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+    Knowledge:
+    {context}
+
+    User Query:
+    {query}
+    <|end|>
+    <|assistant|>
+    """ 
+
+        final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+        # final_answer = generate_hf_response(chatml_prompt)
+
+        return  JSONResponse({ 
+                    "success": True,
+                    "response": final_answer , 
+                    "type": 'text'
+        })
+        
+        
+    if  len(context)>10: 
+        append_context_to_file({"user": query, "response": context})
+ 
+
+    # 🧩 Clean system message for DeepSeek model
+
+    system_prompt = ( 
+    "You are Arya — a warm, polite, and expert real-estate assistant. "
+    "Your single source of truth is the section called 'Knowledge'. " 
+    "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
+    "you must answer using that information directly and confidently. "
+    "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
+    "Do not ask for the project or developer again — use what is provided in Knowledge. "
+    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
+    chatml_prompt = f"""
+<|system|>
+{system_prompt}
 <|end|>
 <|user|>
 Active Society: {active_society or "None"}
@@ -900,70 +971,28 @@ Active Society: {active_society or "None"}
 Chat History:
 {chat_history_text}
 
-Knowledge:
-{context_for_prompt}
+The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
 
-User Query: {query}
+Knowledge:
+{context}
+
+User Query:
+{query}
 <|end|>
 <|assistant|>
-"""
+""" 
 
-    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
 
-    # ====== COMPREHENSIVE CLEANUP ======
-    final_answer = final_answer.strip()
-    
-    # 1. Remove ALL special tokens and incomplete tags
-    final_answer = re.sub(r'<\|[^|]*\|>', '', final_answer)  # <|end|>, <|system|>
-    final_answer = re.sub(r'<\|[^|]*$', '', final_answer)     # Incomplete: <|end
-    final_answer = re.sub(r'<[^>]*$', '', final_answer)        # Incomplete: <
-    final_answer = re.sub(r'[<>|]+$', '', final_answer)        # Trailing: >, <, |
-    
-    # 2. Remove query echoes and prefixes
-    final_answer = re.sub(r'^(Query|User|Assistant):\s*', '', final_answer, flags=re.IGNORECASE)
-    final_answer = re.sub(r'\n(Query|User|Assistant):\s*', '\n', final_answer, flags=re.IGNORECASE)
-    
-    # 3. Remove lines that echo the query
-    query_lower = query.lower().strip()
-    lines = final_answer.split('\n')
-    cleaned_lines = []
-    
-    for line in lines:
-        line_stripped = line.strip()
-        line_lower = line_stripped.lower()
-        
-        # Skip empty lines, query echoes, or lines starting with "Query:"
-        if not line_stripped:
-            continue
-        if line_lower.startswith('query:'):
-            continue
-        if line_lower == query_lower:
-            continue
-        # Skip very similar lines (typos or slight variations)
-        if len(query_lower) > 3 and similarity(line_lower, query_lower) > 0.85:
-            continue
-            
-        cleaned_lines.append(line)
-    
-    final_answer = '\n'.join(cleaned_lines).strip()
-    
-    # 4. Final special character cleanup
-    final_answer = re.sub(r'[<>|]+$', '', final_answer).strip()
-    
-    # If model returns empty or too short after cleanup
-    if not final_answer or len(final_answer.strip()) < 3:
-        return JSONResponse({
+    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+    # final_answer = generate_hf_response(chatml_prompt)
+
+    return JSONResponse({ 
             "success": True,
-            "response": "I don't have enough information to answer precisely. Could you please provide the location, project name or BHK you're interested in?",
+            "response": final_answer , 
             "type": 'text'
-        })
+            })
 
-    return JSONResponse({
-        "success": True,
-        "response": final_answer,
-        "type": 'text'
-    })
-        
+# # # 
 @app.api_route("/stream_info", methods=["POST"])
 async def ask_chat(request: Request ,  body: dict = Body(None)):
     global LAST_TITLE_ID
@@ -996,7 +1025,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
             f'Here is your brochure: {brochure_path}'.strip()
         )
         
-    #INSERT GREETING HANDLER HERE
+    # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
     if greeting_check["is_greeting"] and greeting_check["response"]:
         async def greeting_stream():
@@ -1049,7 +1078,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         combined_history,
         embeddings,
         k_similar=4,
-        last_n=2,  # reduced
+        last_n=4,
         max_chars=2000,
     ) or []
 
@@ -1085,25 +1114,100 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text)
     if len(context.strip())< 10: 
         print("no Context")
-        context_for_prompt = "(EMPTY)"
-    else:
-        context_for_prompt = context
+        system_prompt = (
+        "You are Arya — a warm, polite, and expert real-estate assistant. "
+        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
+        "respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow"
+        "'How can I help you today?' or 'Would you like details about any project?'. "
+        "Your single source of truth is the section called 'Knowledge'. "
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+        "you must answer using that information directly and confidently."
+        "Do not ask for the project or developer again — use what is provided in Knowledge."
+        "Don't Use Certainly word in response"
+        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
+        "Avoid generic responses or repeating the user's query. "
+        "Be concise, accurate, and factual."
+    )
+        chatml_prompt = f"""
+    <|system|>
+    {system_prompt}
+    <|end|>
+    <|user|>
 
-    # Build unified chatml prompt
+    Chat History:
+    {chat_history_text}
+
+    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+    Knowledge:
+    {context}
+
+    User Query:
+    {query}
+    <|end|>
+    <|assistant|>
+    """ 
+        async def stream_response():
+            async for token in hf_stream_generate(
+                chatml_prompt,
+                global_model,
+                global_tokenizer
+            ):
+                yield cleaner(token) 
+        # async def stream_response():
+        #     for chunk in generate_hf_stream_response(chatml_prompt):
+        #         yield chunk
+
+        return StreamingResponse(
+            stream_response(),
+            media_type="text/plain",
+            headers={"Transfer-Encoding": "chunked"}
+        ) 
+        
+        
+        
+    if  len(context)>10: 
+        append_context_to_file({"user": query, "response": context}) 
+ 
+
+    # 🧩 Clean system message for DeepSeek model
+    
+
+    system_prompt = ( 
+    "You are Arya — a warm, polite, and expert real-estate assistant. "
+    "Your single source of truth is the section called 'Knowledge'. " 
+    "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
+    "you must answer using that information directly and confidently. "
+    "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
+    "Do not ask for the project or developer again — use what is provided in Knowledge. "
+    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
     chatml_prompt = f"""
-<|system|>
-Active Society: {active_society or "None"}
+                    <|system|>
+                    {system_prompt}
+                    <|end|>
+                    <|user|>
+                    Active Society: {active_society or "None"}
 
-Chat History:
-{chat_history_text}
+                    Chat History:
+                    {chat_history_text}
 
-Knowledge:
-{context_for_prompt}
+                    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
 
-User Query:
-{query}
-"""
+                    Knowledge:
+                    {context}
 
+                    User Query:
+                    {query}
+                    <|end|>
+                    <|assistant|>
+                    """ 
+
+
+    last_char = ""
     async def stream_response():
         async for token in hf_stream_generate(
             chatml_prompt,
@@ -1111,6 +1215,9 @@ User Query:
             global_tokenizer
         ):
             yield cleaner(token)
+    # async def stream_response():
+    #     for chunk in generate_hf_stream_response(chatml_prompt):
+    #         yield chunk
 
     return StreamingResponse(
         stream_response(),
