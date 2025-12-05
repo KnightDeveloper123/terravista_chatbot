@@ -127,7 +127,8 @@ def load_documents(file_path: str = DATA_FILE):
 
 # |========================================|
 # |Embeddings, Vectorstore, Retriever      |
-# |========================================|
+# |========================================| 
+print("Before enter to  create embedding model..................")
 def create_embeddings(): 
     model_path=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2")
     print("embedding model Path: " , model_path )
@@ -143,7 +144,8 @@ def create_embeddings():
 
 def build_vectorstore() -> FAISS:
     print("🔨 Rebuilding embeddings & index...")
-    docs = load_documents(DATA_FILE)
+    docs = load_documents(DATA_FILE) 
+    print("call embedding model in build vectorstores ////////////")
     embeddings = create_embeddings()
     vectorstore = FAISS.from_documents(docs, embeddings)
     timestamp = get_file_timestamp(DATA_FILE)
@@ -151,7 +153,9 @@ def build_vectorstore() -> FAISS:
     return vectorstore
 
 def get_vectorstore_and_retriever():
+    print("call embedding model in get_vectorstore_and_retriever ????????????")
     embeddings = create_embeddings()
+    print("call embedding model after get_vectorstore_and_retriever ????????????")
     current_timestamp = get_file_timestamp(DATA_FILE)
 
     if embeddings_exist():
@@ -712,7 +716,10 @@ def hf_generate_full(prompt, model, tokenizer , max_tokens=384 , temp=0.2, top_p
             
     return text.strip()
 
+
+print("Before call create embedding ..................")
 embeddings = create_embeddings()
+print("after call create embedding ..................")
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
 
