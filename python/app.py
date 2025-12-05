@@ -51,7 +51,10 @@ CONTEXT_FILE = os.path.join(BASE_DIR , "storage" ,"context.txt")
 MAX_CONTEXT_TURNS = 4
 
 
-SESSION_STATE = defaultdict(dict)  # per-session state: {"active_society": str}
+SESSION_STATE = defaultdict(lambda: {
+    "active_society": None,
+    "user_name": None
+})  # per-session state: {"active_society": str}
 
 
 
@@ -701,7 +704,39 @@ prompt = create_prompt()
 #     return raw
 
 
-## how we skipe the tokens like <|end|>
+## how we skipe the tokens like <|end|> 
+
+### For name extraction ............ 
+global_tokenizer, global_model = create_llm()  
+
+def build_prompt(user_text , global_tokenizer):
+    SYSTEM_PROMPT = """
+    You are an expert AI assistant for human name extraction.
+    Rules: 
+    - Extract ONLY human personal names.
+    - No explanation.
+    - No notes.
+    - No reasoning.
+    - No extra text. 
+
+    - If no real human name found, return: Null
+    """
+    messages = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "user", "content": user_text}
+    ]
+    return global_tokenizer.apply_chat_template(
+        messages,
+        tokenize=False,
+        add_generation_prompt=True
+    ) 
+
+def extract_name(query , global_tokenizer=global_tokenizer): 
+    prompt = build_prompt(query ,global_tokenizer )
+    print("PROMPT:", prompt)  
+    response = hf_generate_full(prompt=prompt,  model=global_model, tokenizer=global_tokenizer , max_tokens=32, temp=0.1, top_p=0.5) 
+    response = response.strip() 
+    return response 
 
 parser = StrOutputParser() 
 
@@ -714,8 +749,8 @@ MEETING_SESSION = {}
 app = FastAPI(title="Real Estate Chatbot")
 
 # app.mount("/public", StaticFiles(directory="documents"), name="public")
-global_tokenizer, global_model = create_llm()
-  
+
+
 ##############
 # from check import generate_hf_response , generate_hf_stream_response  
 ############## 
@@ -727,7 +762,9 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     title_id = (body or {}).get("title_id")
     query = (body or {}).get("query")
     user_id = (body or {}).get("user_id")
+    name = (body or {}).get("name")  
 
+    print("the name key is : " , name)
     if title_id and title_id != LAST_TITLE_ID:
         reset_context()
         LAST_TITLE_ID = title_id
@@ -741,16 +778,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         "type": 'text'
                     }) 
                         
-        
-    if is_brochure_request(query):
-        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
-        return JSONResponse({
-                        "success":True,
-                        "response":brochure_path , 
-                        "type": "document" , 
-                        "caption" : "This your Broucher " , 
-                        "filename" : "Broucher.pdf"
-                    }) 
+    
                        
     
     # ✅ INSERT GREETING HANDLER HERE
@@ -762,123 +790,197 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         "response": greeting_check['response'], 
                         "type": 'text'
                     }) 
-                       
-
-    # remove greeting prefix if needed
-    if not greeting_check["is_greeting"]:
-        for key in ["hi", "hello", "hey", "good morning", "good afternoon",
-                    "good evening", "namaste", "greetings"]:
-            if query.lower().startswith(key):
-                query = query[len(key):].strip(",.! ").strip()
-                break
     
-    # Detect society and manage session
-    mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
-    if mentioned:
-        SESSION_STATE[session_id]["active_society"] = mentioned
+    # saved_name = SESSION_STATE[session_id].get("user_name") 
+    # print("Saved ma,e we have: ",  saved_name)
+    # if saved_name:
+    #     name = saved_name 
+    #     print("name we have " , name)
+    if name not in ['Null' , 'null' , None , 'None']: 
 
-    if re.search(r"\b(reset|clear)\b.*\bsociety\b", query, re.I):
-        SESSION_STATE[session_id]["active_society"] = None
+        # if name: 
+        #     res = extract_name(query , global_tokenizer) 
+        #     return JSONResponse({
+        #                 "success": True,
+        #                 "response": res, 
+        #                 "type": 'text'
+        #             }) 
 
-    active_society = SESSION_STATE[session_id].get("active_society")
+        if is_brochure_request(query):
+            brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
+            return JSONResponse({
+                            "success":True,
+                            "response":brochure_path , 
+                            "type": "document" , 
+                            "caption" : "This your Broucher " , 
+                            "filename" : "Broucher.pdf"
+                        }) 
+        # remove greeting prefix if needed
+        if not greeting_check["is_greeting"]:
+            for key in ["hi", "hello", "hey", "good morning", "good afternoon",
+                        "good evening", "namaste", "greetings"]:
+                if query.lower().startswith(key):
+                    query = query[len(key):].strip(",.! ").strip()
+                    break
+        
+        # Detect society and manage session
+        mentioned = detect_society_in_query(query, KNOWN_SOCIETIES)
+        if mentioned:
+            SESSION_STATE[session_id]["active_society"] = mentioned
 
-    # Retrieve relevant context
-    retriever =  vectorstore.as_retriever(search_type="similarity_score_threshold",
-                                         search_kwargs={"score_threshold": 0.25,
-                                                        "k": 5})
-    docs = retriever.invoke(query)
-    ranked_docs = rerank.invoke({"docs": docs, "question": query})
-    context = format_docs(ranked_docs)
+        if re.search(r"\b(reset|clear)\b.*\bsociety\b", query, re.I):
+            SESSION_STATE[session_id]["active_society"] = None
 
-    if len(context) > 3000:
-        context = context[:3000]
+        active_society = SESSION_STATE[session_id].get("active_society")
+
+        # Retrieve relevant context
+        retriever =  vectorstore.as_retriever(search_type="similarity_score_threshold",
+                                            search_kwargs={"score_threshold": 0.25,
+                                                            "k": 5})
+        docs = retriever.invoke(query)
+        ranked_docs = rerank.invoke({"docs": docs, "question": query})
+        context = format_docs(ranked_docs)
+
+        if len(context) > 3000:
+            context = context[:3000]
+            
+
+
+        # Load local and external chat history
+        if title_id not in [None, 0]:
+            full_history = fetch_chat_history(title_id)
+        else:
+            full_history = ""
+        local_context = load_context_file()
+        combined_history = (full_history or []) + local_context
+        print("Local Context: " , local_context) 
+        print("🎈🎈🎈"*10)
+        print("Combined_history: " , combined_history) 
+        print("🎀"*30)
+        selected_hist = select_relevant_history(
+            query,
+            combined_history,
+            embeddings,
+            k_similar=4,
+            last_n=4,
+            max_chars=2000,
+        ) or [] 
+        print("selected_hist: " , selected_hist) 
+        
         
 
+        selected_hist.append({"user": query, "response": ""})
+        chat_history_text = format_history_for_prompt(selected_hist)
 
-    # Load local and external chat history
-    if title_id not in [None, 0]:
-        full_history = fetch_chat_history(title_id)
-    else:
-        full_history = ""
-    local_context = load_context_file()
-    combined_history = (full_history or []) + local_context
-    print("Local Context: " , local_context) 
-    print("🎈🎈🎈"*10)
-    print("Combined_history: " , combined_history) 
-    print("🎀"*30)
-    selected_hist = select_relevant_history(
-        query,
-        combined_history,
-        embeddings,
-        k_similar=4,
-        last_n=4,
-        max_chars=2000,
-    ) or [] 
-    print("selected_hist: " , selected_hist) 
+        if len(chat_history_text) > 800:
+            chat_history_text = chat_history_text[-800:]
     
-    
+        if session_id not in MEETING_SESSION:
+            MEETING_SESSION[session_id] = MeetingSchedulerBot()
 
-    selected_hist.append({"user": query, "response": ""})
-    chat_history_text = format_history_for_prompt(selected_hist)
+        scheduler = MEETING_SESSION[session_id]
+        scheduler.user_id = user_id
 
-    if len(chat_history_text) > 800:
-        chat_history_text = chat_history_text[-800:]
-  
-    if session_id not in MEETING_SESSION:
-        MEETING_SESSION[session_id] = MeetingSchedulerBot()
+        if scheduler.awaiting in ["datetime", "purpose"]:
+            reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
+            return JSONResponse({
+                            "success": True,
+                            "response":reply , 
+                            "type": 'text'
+                        }) 
+                        
 
-    scheduler = MEETING_SESSION[session_id]
-    scheduler.user_id = user_id
+        if is_meeting_request(query):
+            scheduler.reset_state()
+            reply = scheduler.respond(query)
+            return JSONResponse({
+                            "success": True,
+                            "response": reply , 
+                            "type": 'text'
+                        }) 
+                        
+        
+        last_char = ""  
+        def cleaner(text):
+            return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
+        
+        
+        if len(context.strip()) < 10:
+            system_prompt = (
+            "You are Arya — a warm, polite, and expert real-estate assistant.\n\n"
+            "GREETING LOGIC:\n"
+                "- If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), \n"
+                "- if user ask about yourself then give 'i am real-estate assistant tell me how i can help you?' \n"
+                "- respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow\n"
+                "- 'How can I help you today?' or 'Would you like details about any project?'.\n "
+                "- Do NOT provide any knowledge-based answer when the user is simply greeting.\n\n"
+            "NON-GREETING LOGIC:\n"
+                "- Your single source of truth is the section called 'Knowledge'. "
+                "- Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+                "- If the user asks for additional details, says 'yes', 'more details', 'tell me more' or continues the topic, respond using the selected history and chat history.\n"
+                "Don't Use Certainly word in response\n\n"
+            "STYLE RULES:\n"
+                "- Do not use the word 'Certainly'.\n"
+                "- Maintain an empathetic, natural, and professional tone like a helpful real-estate consultant.\n"
+                "- Avoid generic responses and avoid repeating the user's question.\n"
+                "- Be concise, accurate, and factual.\n"
+        )
+            chatml_prompt = f"""
+        <|system|>
+        {system_prompt}
+        <|end|>
+        <|user|>
 
-    if scheduler.awaiting in ["datetime", "purpose"]:
-        reply = scheduler.respond(query, chat_history=chat_history_text.split("\n"))
-        return JSONResponse({
+        Chat History:
+        {chat_history_text}
+
+        The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+
+        Knowledge:
+        {context}
+
+        User Query:
+        {query}
+        <|end|>
+        <|assistant|>
+        """ 
+            print("If context is short ............................. ")
+            print("Chatml prompt: " , chatml_prompt )
+            final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
+            # final_answer = generate_hf_response(chatml_prompt)
+            # final_answer = Llama_model(chatml_prompt) 
+            print(final_answer)
+            return  JSONResponse({ 
                         "success": True,
-                        "response":reply , 
+                        "response": final_answer , 
                         "type": 'text'
-                    }) 
-                      
+            })
+            
+            
+        if  len(context)>10: 
+            append_context_to_file({"user": query, "response": context})
+    
 
-    if is_meeting_request(query):
-        scheduler.reset_state()
-        reply = scheduler.respond(query)
-        return JSONResponse({
-                        "success": True,
-                        "response": reply , 
-                        "type": 'text'
-                    }) 
-                      
-    
-    last_char = ""  
-    def cleaner(text):
-        return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
-    
-    
-    if len(context.strip()) < 10:
-        system_prompt = (
-        "You are Arya — a warm, polite, and expert real-estate assistant.\n\n"
-        "GREETING LOGIC:\n"
-            "- If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), \n"
-            "- if user ask about yourself then give 'i am real-estate assistant tell me how i can help you?' \n"
-            "- respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow\n"
-            "- 'How can I help you today?' or 'Would you like details about any project?'.\n "
-            "- Do NOT provide any knowledge-based answer when the user is simply greeting.\n\n"
-        "NON-GREETING LOGIC:\n"
-            "- Your single source of truth is the section called 'Knowledge'. "
-            "- Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
-            "- If the user asks for additional details, says 'yes', 'more details', 'tell me more' or continues the topic, respond using the selected history and chat history.\n"
-            "Don't Use Certainly word in response\n\n"
-        "STYLE RULES:\n"
-            "- Do not use the word 'Certainly'.\n"
-            "- Maintain an empathetic, natural, and professional tone like a helpful real-estate consultant.\n"
-            "- Avoid generic responses and avoid repeating the user's question.\n"
-            "- Be concise, accurate, and factual.\n"
-    )
+        # 🧩 Clean system message for DeepSeek model
+
+        system_prompt = ( 
+        "You are Arya — a warm, polite, and expert real-estate assistant. "
+        "Your single source of truth is the section called 'Knowledge'. " 
+        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
+        "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
+        "you must answer using that information directly and confidently. "
+        "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
+        "Do not ask for the project or developer again — use what is provided in Knowledge. "
+        "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
+        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
+        "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
+
         chatml_prompt = f"""
     <|system|>
     {system_prompt}
     <|end|>
     <|user|>
+    Active Society: {active_society or "None"}
 
     Chat History:
     {chat_history_text}
@@ -893,70 +995,36 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     <|end|>
     <|assistant|>
     """ 
-        print("If context is short ............................. ")
-        print("Chatml prompt: " , chatml_prompt )
+
+
         final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
-        # final_answer = generate_hf_response(chatml_prompt)
-        # final_answer = Llama_model(chatml_prompt) 
+        # final_answer = generate_hf_response(chatml_prompt)  
+        print("If context is we got  ----------------------------- ")
+        print("Chatml prompt: " , chatml_prompt )
+        # final_answer = Llama_model(chatml_prompt)
         print(final_answer)
-        return  JSONResponse({ 
+        return JSONResponse({ 
+                "success": True,
+                "response": final_answer , 
+                "type": 'text'
+                })
+
+    else: 
+        res = extract_name(query , global_tokenizer) 
+        res = res.lower()
+        if 'null' in res: 
+            return JSONResponse({ 
                     "success": True,
-                    "response": final_answer , 
+                    "response": "Please provide the name else we can move further." , 
                     "type": 'text'
-        })
-        
-        
-    if  len(context)>10: 
-        append_context_to_file({"user": query, "response": context})
- 
-
-    # 🧩 Clean system message for DeepSeek model
-
-    system_prompt = ( 
-    "You are Arya — a warm, polite, and expert real-estate assistant. "
-    "Your single source of truth is the section called 'Knowledge'. " 
-    "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query. "
-    "If the Knowledge includes any details about the user’s question (e.g., price, area, project name, BHK type, developer), " 
-    "you must answer using that information directly and confidently. "
-    "⚠️ Preserve all numbers *exactly as written in the Knowledge section*, including zeros and commas (e.g., 1000, 25000, 3.50). Never round, truncate, or reformat them. "
-    "Do not ask for the project or developer again — use what is provided in Knowledge. "
-    "Only if Knowledge is completely empty should you ask a follow-up. " "Don't Use Certainly, first Conversation in response. "
-    "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. " 
-    "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
-
-    chatml_prompt = f"""
-<|system|>
-{system_prompt}
-<|end|>
-<|user|>
-Active Society: {active_society or "None"}
-
-Chat History:
-{chat_history_text}
-
-The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
-
-Knowledge:
-{context}
-
-User Query:
-{query}
-<|end|>
-<|assistant|>
-""" 
-
-
-    final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
-    # final_answer = generate_hf_response(chatml_prompt)  
-    print("If context is we got  ----------------------------- ")
-    print("Chatml prompt: " , chatml_prompt )
-    # final_answer = Llama_model(chatml_prompt)
-    print(final_answer)
-    return JSONResponse({ 
-            "success": True,
-            "response": final_answer , 
-            "type": 'text'
-            })
+                    }) 
+        SESSION_STATE[session_id]["user_name"] = res  
+        return JSONResponse({ 
+                    "success": True,
+                    "response": f"Hi {res} Thanks for your name." , 
+                    "type": 'text',
+                    "name": res
+                    })
 
 # # # 
 @app.api_route("/stream_info", methods=["POST"])
@@ -965,13 +1033,18 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
 
     title_id = None
     query = None
-    user_id = None
+    user_id = None 
+    name = None 
+    # email = None
+
 
     # If POST → get title_id + query from body
     if request.method == "POST":
         title_id = (body or {}).get("title_id")
         query = (body or {}).get("query") 
         user_id = (body or {}).get("user_id") 
+        name = (body or {}).get("name") 
+
 
         if title_id and title_id != LAST_TITLE_ID:
             reset_context()
