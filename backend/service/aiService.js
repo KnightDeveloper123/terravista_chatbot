@@ -1,14 +1,14 @@
 const connection = require("../database/db");
 const executeQuery = require("../utils/executeQuery");
 
-async function getAiReply(titleId, userId, query) {
+async function getAiReply(titleId, userId, name, query) {
     try {
         if (!titleId || !userId || !query) {
             return { error: 'titleId, userId and query are required' }
         }
         const pythonApiUrl = process.env.PYTHON_BOT_URL;
 
-        const response = await fetch(pythonApiUrl + "/stream_info", {
+        const response = await fetch(pythonApiUrl + "/get_info", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -16,7 +16,8 @@ async function getAiReply(titleId, userId, query) {
             body: JSON.stringify({
                 title_id: titleId,
                 query: query,
-                user_id: userId
+                user_id: userId,
+                name: name
             })
         });
 
@@ -24,12 +25,27 @@ async function getAiReply(titleId, userId, query) {
             throw new Error("Failed to fetch from Python bot");
         }
 
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
+        const data = await response.json();
 
-        let isStreaming = true;
+        if (data.success) {
+            return { ...data }
+        } else {
+            return { error: "Sorry, I'm having trouble responding right now." }
+        }
+    } catch (error) {
+        console.log("AI Service Error:", error.message);
+        return { error: "Sorry, I'm having trouble responding right now." };
+    }
+}
+
+
+/**
+    let isStreaming = true;
         let fullText = "";
         let buffer = "";
+
+        console.log("Streaming");
+
 
         while (isStreaming) {
             const { value, done } = await reader.read();
@@ -37,17 +53,18 @@ async function getAiReply(titleId, userId, query) {
                 isStreaming = false;
                 break;
             };
+
             if (!value) continue;
 
             buffer += decoder.decode(value, { stream: true });
-
+            // console.log(buffer);
             let boundary = buffer.indexOf(" ");
             while (boundary !== -1) {
                 const chunk = buffer.slice(0, boundary + 1);
                 buffer = buffer.slice(boundary + 1);
 
                 if (chunk.trim()) {
-                    fullText += chunk; // store chunk
+                    fullText += chunk;
                 }
 
                 boundary = buffer.indexOf(" ");
@@ -57,23 +74,20 @@ async function getAiReply(titleId, userId, query) {
         if (buffer.trim()) {
             fullText += buffer;
         }
+        // console.log(fullText);
 
-        return { success: true, data: fullText.trim() };
+        return fullText;
 
-    } catch (error) {
-        console.log("AI Service Error:", error.message);
-        return "Sorry, I'm having trouble responding right now.";
-    }
-}
+ **/
 
-async function getOrCreateWhatsAppTitle(name, phone) {
-    const users = await executeQuery("SELECT id FROM user WHERE phone_number = ?", [phone]);
+async function getOrCreateWhatsAppTitle(phone) {
+    const users = await executeQuery("SELECT id, name FROM user WHERE phone_number = ?", [phone]);
 
     let userId;
     let titleId;
 
     if (users.length === 0) {
-        const addUser = await executeQuery("INSERT INTO user (name, phone_number) VALUES (?, ?)", [name, phone]);
+        const addUser = await executeQuery("INSERT INTO user (phone_number) VALUES (?)", [phone]);
         if (!addUser.insertId) {
             throw new Error("Failed to insert new user");
         }
@@ -96,7 +110,7 @@ async function getOrCreateWhatsAppTitle(name, phone) {
         titleId = titles[0].id;
     }
 
-    return { userId, titleId };
+    return { userId, titleId, name: users[0]?.name ?? null };
 }
 
 async function saveChatMessage(titleId, message, sender) {

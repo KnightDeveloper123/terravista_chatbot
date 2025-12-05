@@ -122,9 +122,9 @@ def load_documents(file_path: str = DATA_FILE):
         d.metadata["society"] = last_name or "unknown"
     return chunks
 
-# ========================================
-# Embeddings, Vectorstore, Retriever
-# ========================================
+# |========================================|
+# |Embeddings, Vectorstore, Retriever      |
+# |========================================|
 def create_embeddings():
     return HuggingFaceEmbeddings(
         model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
@@ -723,6 +723,7 @@ prompt = create_prompt()
 #         stop=STOP_WORDS)
 #     raw  = gen_res["choices"][0]["text"].strip() 
 #     return raw
+
 
 ## how we skipe the tokens like <|end|>
 
