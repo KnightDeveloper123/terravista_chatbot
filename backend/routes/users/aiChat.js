@@ -1,4 +1,5 @@
 const express = require('express');
+const executeQuery = require('../../utils/executeQuery');
 const router = express.Router();
 
 router.get("/get-info", async (req, res) => {
@@ -9,12 +10,15 @@ router.get("/get-info", async (req, res) => {
             return res.status(400).json({ error: "Query parameter is required" });
         }
 
+        const [userDetails] = await executeQuery(`select * from user where id=?`, [user_id]);
+        console.log({ title_id: title_id ?? 0, query: query, user_id, name: userDetails.name });
+
         const pythonApiUrl = process.env.PYTHON_BOT_URL;
 
         const response = await fetch(`${pythonApiUrl}/stream_info`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ title_id: title_id ?? 0, query: query, user_id })
+            body: JSON.stringify({ title_id: title_id ?? 0, query: query, user_id, name: userDetails.name })
         });
 
         if (!response.ok) {
