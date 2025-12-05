@@ -24,7 +24,7 @@ from symspellpy import SymSpell
 # from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
 from difflib import SequenceMatcher
-from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer , StoppingCriteria, StoppingCriteriaList
+from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer , StoppingCriteria, StoppingCriteriaList , AutoModel
 import threading
 import torch
 from meeting import * 
@@ -36,6 +36,7 @@ load_dotenv()
 
 
 os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
 # ========================================
 # Paths and globals
 # ======================================== 
@@ -127,11 +128,13 @@ def load_documents(file_path: str = DATA_FILE):
 # |========================================|
 # |Embeddings, Vectorstore, Retriever      |
 # |========================================|
-def create_embeddings():
+def create_embeddings(): 
+    model_path=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2")
+    print("embedding model Path: " , model_path )
     return HuggingFaceEmbeddings(
-        model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
+        model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"), 
         model_kwargs={
-            "device": "cpu",
+            "device": "cuda",
             "local_files_only": True   # ← THIS FIXES SERVER ISSUE
         },
         encode_kwargs={"normalize_embeddings": True},
