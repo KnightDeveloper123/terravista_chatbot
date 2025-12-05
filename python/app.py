@@ -30,6 +30,7 @@ import torch
 from meeting import * 
 from utils import is_brochure_request
 import asyncio  
+from context_gen import get_response_if_context
 from file_manage import get_synced_vectorstore 
 warnings.filterwarnings("ignore", category=FutureWarning)
 load_dotenv()
@@ -733,10 +734,12 @@ def build_prompt(user_text , global_tokenizer):
 
 def extract_name(query , global_tokenizer=global_tokenizer): 
     prompt = build_prompt(query ,global_tokenizer )
-    print("PROMPT:", prompt)  
     response = hf_generate_full(prompt=prompt,  model=global_model, tokenizer=global_tokenizer , max_tokens=32, temp=0.1, top_p=0.5) 
     response = response.strip() 
-    return response 
+    return response  
+
+
+
 
 parser = StrOutputParser() 
 
@@ -778,8 +781,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         "type": 'text'
                     }) 
                         
-    ###
-                       
+    ###    
     
     # ✅ INSERT GREETING HANDLER HERE
     greeting_check = detect_greeting(query)
@@ -791,20 +793,9 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         "type": 'text'
                     }) 
     
-    # saved_name = SESSION_STATE[session_id].get("user_name") 
-    # print("Saved ma,e we have: ",  saved_name)
-    # if saved_name:
-    #     name = saved_name 
-    #     print("name we have " , name)
+
     if name not in ['Null' , 'null' , None , 'None']: 
 
-        # if name: 
-        #     res = extract_name(query , global_tokenizer) 
-        #     return JSONResponse({
-        #                 "success": True,
-        #                 "response": res, 
-        #                 "type": 'text'
-        #             }) 
 
         if is_brochure_request(query):
             brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
@@ -1009,24 +1000,30 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                 "success": True,
                 "response": final_answer , 
                 "type": 'text'
-                })
+                }) 
 
     else: 
-        res = extract_name(query , global_tokenizer) 
-        res = res.lower()
+        res = extract_name(query , global_tokenizer)  
+        res = res.lower() 
+
+
+        ## for generating the response of previous one 
         if 'null' in res: 
             return JSONResponse({ 
                     "success": True,
-                    "response": "Please provide the name else we can move further." , 
+                    "response": "Please Let Me know Your Name So We Can Proceed Further." , 
                     "type": 'text'
                     }) 
-        SESSION_STATE[session_id]["user_name"] = res  
-        return JSONResponse({ 
-                    "success": True,
-                    "response": f"Hi {res} Thanks for your name." , 
-                    "type": 'text',
-                    "name": res
-                    })
+        
+        if res: 
+            chatml = get_response_if_context(vectorstore=vectorstore , title_id=title_id , name=res)
+            final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+            return JSONResponse({ 
+                        "success": True,
+                        "response": final_answer , 
+                        "type": 'text',
+                        "name": res
+                        })
 
 # # # 
 @app.api_route("/stream_info", methods=["POST"])
