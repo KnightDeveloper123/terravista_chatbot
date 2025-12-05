@@ -27,6 +27,8 @@ async function getAiReply(titleId, userId, name, query) {
 
         const data = await response.json();
 
+        console.log(data);
+
         if (data.success) {
             return { ...data }
         } else {
