@@ -157,7 +157,7 @@ def sync_local_storage_with_api() -> List[str]:
     valid_paths = []
     for f_name in api_files:
         full_path = os.path.join(DOCUMENTS_DIR, f_name)
-        
+        print("FULL PATH : ", full_path)
         # If file doesn't exist locally, download it
         if not os.path.exists(full_path):
             success = download_file(f_name)
