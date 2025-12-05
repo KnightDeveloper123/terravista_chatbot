@@ -610,7 +610,7 @@ class StopOnTokens(StoppingCriteria):
 # Initialize the stopping criteria list
 stopping_criteria = StoppingCriteriaList([StopOnTokens()]) 
 
-async def hf_stream_generate(prompt, model, tokenizer , max_tokens=384 , temp=0.2, top_p=1.01):
+async def hf_stream_generate(prompt, model, tokenizer , max_tokens=128 , temp=0.2, top_p=1.01):
     # Tokenize properly
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
@@ -654,7 +654,7 @@ async def hf_stream_generate(prompt, model, tokenizer , max_tokens=384 , temp=0.
             break
         await asyncio.sleep(0)
 
-def hf_generate_full(prompt, model, tokenizer , max_tokens=384 , temp=0.2, top_p=1.01):
+def hf_generate_full(prompt, model, tokenizer , max_tokens=128 , temp=0.2, top_p=1.01):
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
     gen_kwargs = dict(
