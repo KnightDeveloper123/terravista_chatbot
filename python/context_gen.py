@@ -1,6 +1,6 @@
 
 
-from app import fetch_chat_history
+from app import *
 
 ##
 def get_response_if_context(vectorstore ,query , title_id , name):
