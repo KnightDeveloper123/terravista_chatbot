@@ -20,6 +20,7 @@ from langchain_community.document_loaders import (
     UnstructuredExcelLoader, 
     PyPDFLoader
 )
+from app import BASE_DIR
 ####
 # ---------------- CONFIGURATION ---------------- #
 API_BASE_URL = "http://3.6.203.180:7501"
@@ -35,7 +36,7 @@ os.makedirs(EMBEDDINGS_DIR, exist_ok=True)
 
 # Initialize Embedding Model (adjust model_name as needed)
 # Using a small, fast model for demonstration
-_embedder_model = HuggingFaceEmbeddings(model_name="models/all-MiniLM-L6-v2",
+_embedder_model = HuggingFaceEmbeddings(model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
             model_kwargs={ "device": "cpu",
             "local_files_only": True   # ← THIS FIXES SERVER ISSUE
         },
