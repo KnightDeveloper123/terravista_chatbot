@@ -28,6 +28,10 @@ async function getAiReply(titleId, userId, name, query) {
         const data = await response.json();
 
         if (data.success) {
+            if (data.name) {
+                console.log('here is name', data.name);
+                await executeQuery(`UPDATE user set name = ? where id = ?`, [data.name, userId]);
+            }
             return { ...data }
         } else {
             return { error: "Sorry, I'm having trouble responding right now." }
