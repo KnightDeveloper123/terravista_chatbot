@@ -593,7 +593,7 @@ def create_llm():
 
     return tokenizer, model 
 
-STOP_WORDS = ["<|end|>","<|","<" , "<|im_end|>", "<|endoftext|>", "<|user|>", "<|model|>" , "User:" , "Assistant:" ,'user:','assistant:', '<|system|>' , "System:" , "system" ] 
+STOP_WORDS = ["<|end|>","<|","<" , "<|im_end|>", "<|endoftext|>", "<|user|>","User", "<|model|>" , "User:" , "Assistant:" ,'user:','assistant:', '<|system|>' , "System:" , "system" ] 
 
     
 global_tokenizer, global_model = create_llm()
