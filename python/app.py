@@ -135,8 +135,8 @@ def create_embeddings():
     return HuggingFaceEmbeddings(
         model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"), 
         model_kwargs={
-            "device": "cuda",
-            "local_files_only": True   # ← THIS FIXES SERVER ISSUE
+            "device": "cpu",
+            "local_files_only": False   # ← THIS FIXES SERVER ISSUE
         },
         encode_kwargs={"normalize_embeddings": True},
     )
