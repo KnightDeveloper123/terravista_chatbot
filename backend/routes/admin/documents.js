@@ -141,4 +141,59 @@ router.get("/getAlldocfiles", async (req, res) => {
         return res.status(500).json({ error: "Internal Server Error" });
     }
 });
+
+router.get("/bot/documents", middleware, async (req: Request, res: Response) => {
+    try {
+        const bot_id = req.query.bot_id as string;
+        const type = req.query.type as string;
+
+        const page = parseInt(req.query.page as string) || 1;
+        const limit = parseInt(req.query.limit as string) || 10;
+        const offset = (page - 1) * limit;
+
+        if (!bot_id || !type) {
+            return res.status(400).json({ error: "bot_id and type are required." });
+        }
+
+        if (type !== "training" && type !== "brochure") {
+            return res.status(400).json({ error: "Type must be 'training' or 'brochure'." });
+        }
+
+        // Count for pagination
+        const totalRows = await executeQuery(
+            `SELECT COUNT(*) AS total FROM documents WHERE bot_id=? AND doc_category=?`,
+            [bot_id, type]
+        );
+
+        const total = totalRows[0]?.total || 0;
+
+        // Fetch docs
+        const docs = await executeQuery(
+            `SELECT * FROM documents 
+             WHERE bot_id=? AND doc_category=? 
+             ORDER BY created_at DESC
+             LIMIT ? OFFSET ?`,
+            [bot_id, type, limit, offset]
+        );
+
+        // Fix file_url with directory path
+        const responseData = docs.map((doc: any) => ({
+            ...doc,
+            file_url: doc.file_url ? `${doc.file_url}` : null
+        }));
+
+        return res.json({
+            success: "success",
+            data: responseData,
+            total,
+            isNext: total > offset + docs.length
+        });
+
+    } catch (error) {
+        console.error("Error in GET /bot/documents:", error);
+        return res.status(500).json({ error: "Internal Server Error" });
+    }
+});
+
+
 module.exports = router;

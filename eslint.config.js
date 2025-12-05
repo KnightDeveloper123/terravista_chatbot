@@ -33,7 +33,7 @@ export default tseslint.config([
     },
     rules: {
       ...pluginJs.configs.recommended.rules,
-      "no-unused-vars": "warn",
+      "no-unused-vars": ["warn", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_" }],
     },
   },
 ])

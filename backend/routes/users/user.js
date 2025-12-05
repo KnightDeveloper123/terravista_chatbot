@@ -161,7 +161,7 @@ router.get("/deleteUser", async (req, res) => {
 
 router.get("/getAllUser", async (req, res) => {
     try {
-        connection.query(`select id, name, email, mobile_no, status, created_at, updated_at, last_login, date_of_birth, account_status from user where status=0`, (err, result) => {
+        connection.query(`select id, name, email, phone_number, status, created_at, updated_at, last_login, date_of_birth, account_status from user where status=0`, (err, result) => {
             if (err) {
                 console.log(err);
                 return res.status(400).json({ error: "Something went wrong" })
