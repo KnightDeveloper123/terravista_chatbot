@@ -34,6 +34,8 @@ from file_manage import get_synced_vectorstore
 warnings.filterwarnings("ignore", category=FutureWarning)
 load_dotenv()
 
+
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
 # ========================================
 # Paths and globals
 # ======================================== 
@@ -609,13 +611,14 @@ def detect_greeting(text: str):
 def create_llm():
     model_path = os.path.join(BASE_DIR , "models" , "Qwen2.5-3B-Instruct-GPTQ-Int4")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path , local_files_only=True)
 
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         device_map="auto",
         torch_dtype=torch.float16,   # GPTQ should ALWAYS use fp16
-        low_cpu_mem_usage=True
+        low_cpu_mem_usage=True , 
+        local_files_only=True
     )
 
     return tokenizer, model 
