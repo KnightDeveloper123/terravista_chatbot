@@ -115,8 +115,10 @@ def download_file(filename: str) -> bool:
     try:
         encoded_name = quote(filename)
         url = f"{DOWNLOAD_DOC_URL}{encoded_name}"
+
+        print("URL: ", url)
         save_path = os.path.join(DOCUMENTS_DIR, filename)
-        
+        print("save_path: ", save_path)
         print(f"⬇️ Downloading: {filename}...")
         response = requests.get(url, timeout=30)
         response.raise_for_status()
