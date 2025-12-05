@@ -24,7 +24,7 @@ from symspellpy import SymSpell
 # from langchain.retrievers.multi_query import MultiQueryRetriever
 import httpx
 from difflib import SequenceMatcher
-from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer , StoppingCriteria, StoppingCriteriaList
+from transformers import AutoTokenizer, AutoModelForCausalLM ,TextIteratorStreamer , StoppingCriteria, StoppingCriteriaList , AutoModel
 import threading
 import torch
 from meeting import * 
@@ -34,6 +34,9 @@ from file_manage import get_synced_vectorstore
 warnings.filterwarnings("ignore", category=FutureWarning)
 load_dotenv()
 
+
+os.environ["TRANSFORMERS_OFFLINE"] = "1"
+os.environ["HF_HUB_OFFLINE"] = "1"
 # ========================================
 # Paths and globals
 # ======================================== 
@@ -124,13 +127,16 @@ def load_documents(file_path: str = DATA_FILE):
 
 # |========================================|
 # |Embeddings, Vectorstore, Retriever      |
-# |========================================|
-def create_embeddings():
+# |========================================| 
+print("Before enter to  create embedding model..................")
+def create_embeddings(): 
+    model_path=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2")
+    print("embedding model Path: " , model_path )
     return HuggingFaceEmbeddings(
-        model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"),
+        model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"), 
         model_kwargs={
             "device": "cpu",
-            "local_files_only": True   # ← THIS FIXES SERVER ISSUE
+            "local_files_only": False   # ← THIS FIXES SERVER ISSUE
         },
         encode_kwargs={"normalize_embeddings": True},
     )
@@ -138,7 +144,8 @@ def create_embeddings():
 
 def build_vectorstore() -> FAISS:
     print("🔨 Rebuilding embeddings & index...")
-    docs = load_documents(DATA_FILE)
+    docs = load_documents(DATA_FILE) 
+    print("call embedding model in build vectorstores ////////////")
     embeddings = create_embeddings()
     vectorstore = FAISS.from_documents(docs, embeddings)
     timestamp = get_file_timestamp(DATA_FILE)
@@ -146,7 +153,9 @@ def build_vectorstore() -> FAISS:
     return vectorstore
 
 def get_vectorstore_and_retriever():
+    print("call embedding model in get_vectorstore_and_retriever ????????????")
     embeddings = create_embeddings()
+    print("call embedding model after get_vectorstore_and_retriever ????????????")
     current_timestamp = get_file_timestamp(DATA_FILE)
 
     if embeddings_exist():
@@ -295,7 +304,7 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
         return []
 
     try:
-        url = f"http://3.6.203.180:7601/chatbot/getAllChats?title_id={title_id}"
+        url = f"http://13.127.23.180:7601/chatbot/getAllChats?title_id={title_id}"
         res = requests.get(url, timeout=5)
         res.raise_for_status()
         data = res.json()
@@ -326,43 +335,6 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
 
         # ✅ Return last N conversation turns (not only one)
         return chat_pairs[-max_pairs:]
-
-    except Exception as e:
-        print(f"[history] fetch failed: {e}")
-        return []
-
-def fetch_chat_history_local(title_id): 
-    try:
-        url = f"http://localhost:4001/history"
-        res = requests.get(url, timeout=5)
-        res.raise_for_status()
-        data = res.json()
-
-        chat_pairs = []
-        temp_user_msg = None
-
-        if "data" in data:
-            for entry in data["data"]: 
-                sender = entry.get("sender", "").strip().lower()
-                message = entry.get("message", "").strip()
-
-                if not message:
-                    continue
-
-                if sender == "user":
-                    # ✅ Start new pair if a user message arrives
-                    temp_user_msg = message
-
-                elif sender == "bot":
-                    # ✅ If bot replies, pair with last user message
-                    chat_pairs.append({
-                        "user": temp_user_msg or "",
-                        "response": message
-                    })
-                    temp_user_msg = None
-
-        # ✅ Return last N conversation turns (not only one)
-        return chat_pairs[-6:]
 
     except Exception as e:
         print(f"[history] fetch failed: {e}")
@@ -609,13 +581,14 @@ def detect_greeting(text: str):
 def create_llm():
     model_path = os.path.join(BASE_DIR , "models" , "Qwen2.5-3B-Instruct-GPTQ-Int4")
 
-    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path , local_files_only=True)
 
     model = AutoModelForCausalLM.from_pretrained(
         model_path,
         device_map="auto",
         torch_dtype=torch.float16,   # GPTQ should ALWAYS use fp16
-        low_cpu_mem_usage=True
+        low_cpu_mem_usage=True , 
+        local_files_only=True
     )
 
     return tokenizer, model 
@@ -706,7 +679,10 @@ def hf_generate_full(prompt, model, tokenizer , max_tokens=384 , temp=0.2, top_p
             
     return text.strip()
 
+
+print("Before call create embedding ..................")
 embeddings = create_embeddings()
+print("after call create embedding ..................")
 rerank = create_reranker(embeddings, top_k=5)
 prompt = create_prompt()  
 
@@ -767,7 +743,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         
         
     if is_brochure_request(query):
-        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
         return JSONResponse({
                         "success":True,
                         "response":brochure_path , 
@@ -1009,7 +985,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         return "Please enter a query."
         
     if is_brochure_request(query):
-        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
         return HTMLResponse(
             f'Here is your brochure: {brochure_path}'.strip()
         )
