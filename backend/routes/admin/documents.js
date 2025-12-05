@@ -94,7 +94,7 @@ router.get("/deleteDocument", middleware, async (req, res) => {
                 } catch (apiErr) {
                     console.error("Python API Error:", apiErr);
                     console.error("Python API Error:", apiErr.message);
-                    return res.status(500).json({ error: "File deleted locally but failed to notify Python service." });
+                    return res.status(500).json({ success: "File deleted locally but failed to notify Python service." });
                 }
                 // return res.json({ success: "File deleted successfully.", data });
             })
