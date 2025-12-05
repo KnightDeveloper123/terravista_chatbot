@@ -23,7 +23,7 @@ from langchain_community.document_loaders import (
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ####
 # ---------------- CONFIGURATION ---------------- #
-API_BASE_URL = "http://3.6.203.180:7501"
+API_BASE_URL = "http://13.127.23.180:7601"
 GET_ALL_DOCS_URL = f"{API_BASE_URL}/documents/getAllDocuments"
 DOWNLOAD_DOC_URL = f"{API_BASE_URL}/documents/"
 
@@ -232,12 +232,10 @@ def get_synced_vectorstore() -> FAISS:
     
     # 1. Sync Documents (Download/Delete)
     valid_files = sync_local_storage_with_api() 
-    valid_files.append('documents\\real_estate.txt') 
-    print(valid_files)
     print(f"✅ Document Sync Complete. {len(valid_files)} valid files locally.")
 
     # 2. Cleanup Embeddings (Delete orphans)
-    # cleanup_orphaned_embeddings(valid_files)
+    cleanup_orphaned_embeddings(valid_files)
 
     # 3. Load/Create Embeddings for valid files
     all_vectors = []

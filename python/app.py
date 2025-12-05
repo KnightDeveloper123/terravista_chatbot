@@ -304,7 +304,7 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
         return []
 
     try:
-        url = f"http://3.6.203.180:7601/chatbot/getAllChats?title_id={title_id}"
+        url = f"http://13.127.23.180:7601/chatbot/getAllChats?title_id={title_id}"
         res = requests.get(url, timeout=5)
         res.raise_for_status()
         data = res.json()
@@ -335,43 +335,6 @@ def fetch_chat_history(title_id, max_pairs=4):  # ✅ set number of turns you wa
 
         # ✅ Return last N conversation turns (not only one)
         return chat_pairs[-max_pairs:]
-
-    except Exception as e:
-        print(f"[history] fetch failed: {e}")
-        return []
-
-def fetch_chat_history_local(title_id): 
-    try:
-        url = f"http://localhost:4001/history"
-        res = requests.get(url, timeout=5)
-        res.raise_for_status()
-        data = res.json()
-
-        chat_pairs = []
-        temp_user_msg = None
-
-        if "data" in data:
-            for entry in data["data"]: 
-                sender = entry.get("sender", "").strip().lower()
-                message = entry.get("message", "").strip()
-
-                if not message:
-                    continue
-
-                if sender == "user":
-                    # ✅ Start new pair if a user message arrives
-                    temp_user_msg = message
-
-                elif sender == "bot":
-                    # ✅ If bot replies, pair with last user message
-                    chat_pairs.append({
-                        "user": temp_user_msg or "",
-                        "response": message
-                    })
-                    temp_user_msg = None
-
-        # ✅ Return last N conversation turns (not only one)
-        return chat_pairs[-6:]
 
     except Exception as e:
         print(f"[history] fetch failed: {e}")
@@ -780,7 +743,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                         
         
     if is_brochure_request(query):
-        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
         return JSONResponse({
                         "success":True,
                         "response":brochure_path , 
@@ -1022,7 +985,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         return "Please enter a query."
         
     if is_brochure_request(query):
-        brochure_path = "http://3.6.203.180:7601/brochures/Brochure.pdf"
+        brochure_path = "http://13.127.23.180:7601/brochures/Brochure.pdf"
         return HTMLResponse(
             f'Here is your brochure: {brochure_path}'.strip()
         )
