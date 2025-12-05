@@ -370,6 +370,56 @@ const Home: React.FC = () => {
         }
     }, [allChats]);
 
+
+    const renderFormattedMessage = (message: string) => {
+        return message
+            .split(/\n+/)
+            .filter(line => line.trim() !== "")
+            .map((line, idx) => {
+                const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
+                const urlRegex = /(https?:\/\/\S+)/;
+
+                const parts = withIndent.split(/(\*\*.*?\*\*|\*.*?\*|https?:\/\/\S+)/);
+
+                const parsedLine = parts.map((part, i) => {
+                    if (!part) return null;
+                    const trimmed = part.trim();
+
+                    // URL
+                    if (urlRegex.test(trimmed)) {
+                        const clean = trimmed.replace(/[")<>]+$/g, '');
+                        return (
+                            <a key={i} href={clean} target="_blank" rel="noopener noreferrer"
+                                style={{ color: '#fff', textDecoration: 'underline', fontWeight: 'bold' }}>
+                                Click Here
+                            </a>
+                        );
+                    }
+
+                    // Bold
+                    const boldMatch = trimmed.match(/^\*\*(.*?)\*\*$/);
+                    if (boldMatch) {
+                        return <Text as="span" fontWeight="bold" key={i}>{boldMatch[1]}</Text>;
+                    }
+
+                    // Italic
+                    const italicMatch = trimmed.match(/^\*(.*?)\*$/);
+                    if (italicMatch) {
+                        return <Text as="span" fontStyle="italic" key={i}>{italicMatch[1]}</Text>;
+                    }
+
+                    return <Text as="span" key={i}>{part}</Text>;
+                });
+
+                return (
+                    <Flex key={idx} flexDir="column">
+                        <Text mt={idx !== 0 ? 3 : 0}>{parsedLine}</Text>
+                    </Flex>
+                );
+            });
+    };
+
+
     return (
         <Flex h={'100vh'} bg={'#F2F2F2'} p={4} gap={2}>
             <Box w={'400px'} h={'100%'}>
@@ -427,136 +477,9 @@ const Home: React.FC = () => {
                                     <Flex key={index} flexDir={'column'}>
                                         <Box alignSelf={chat.sender === "user" ? "flex-end" : "flex-start"} bg={chat.sender === "user" ? "#fff" : "#005392"} color={chat.sender === "user" ? "#000" : "white"} borderRadius="20px" p="10px" maxW="60%" my="8px" boxShadow="md">
                                             {chat.sender === "bot" && index === allChats.length - 1 ? (
-                                                <Box>
-                                                    {chat?.message
-                                                        ?.split(/\n+/)
-                                                        .filter(line => line.trim() !== '')
-                                                        .map((line, idx) => {
-                                                            const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
-
-                                                            // simplified and reliable URL regex
-                                                            const urlRegex = /(https?:\/\/\S+)/;
-
-                                                            // ALWAYS capture URL parts correctly
-                                                            const parts = withIndent.split(/(\*\*.*?\*\*|\*.*?\*|https?:\/\/\S+)/);
-
-                                                            const parsedLine = parts.map((part, i) => {
-                                                                if (!part) return null;
-
-                                                                const trimmed = part.trim();
-
-                                                                // detect URL
-                                                                if (urlRegex.test(trimmed)) {
-                                                                    let clean = trimmed.replace(/[")<>]+$/g, '');
-                                                                    return (
-                                                                        <a key={i} href={clean} target="_blank"
-                                                                            rel="noopener noreferrer"
-                                                                            style={{ color: '#fff', textDecoration: 'underline', fontWeight: 'bold' }}
-                                                                        >
-                                                                            Click Here
-                                                                        </a>
-                                                                    );
-                                                                }
-
-                                                                // bold
-                                                                const boldMatch = part.match(/^\*\*(.*?)\*\*$/);
-                                                                if (boldMatch) {
-                                                                    return (
-                                                                        <Text as="span" fontWeight="bold" key={i}>
-                                                                            {boldMatch[1]}
-                                                                        </Text>
-                                                                    );
-                                                                }
-
-
-                                                                // italic
-                                                                if (trimmed.startsWith('*') && trimmed.endsWith('*')) {
-                                                                    return (
-                                                                        <Text as="span" fontStyle="italic" key={i}>
-                                                                            {trimmed.slice(1, -1)}
-                                                                        </Text>
-                                                                    );
-                                                                }
-
-
-
-                                                                return <Text as="span" key={i}>{part}</Text>;
-                                                            });
-
-                                                            return (
-                                                                <Flex key={idx} flexDir={'column'}>
-                                                                    <Text mt={idx !== 0 ? 3 : 0}>{parsedLine}</Text>
-                                                                </Flex>
-                                                            );
-                                                        })}
-                                                </Box>
-
+                                                <Box>{renderFormattedMessage(chat.message)}</Box>
                                             ) : (
-                                                <Box>
-                                                    <Box>
-                                                        {chat?.message
-                                                            ?.split(/\n+/)
-                                                            .filter(line => line.trim() !== '')
-                                                            .map((line, idx) => {
-                                                                const withIndent = line.replace(/\t/g, '\u00A0\u00A0\u00A0\u00A0');
-
-                                                                // simplified and reliable URL regex
-                                                                const urlRegex = /(https?:\/\/\S+)/;
-
-                                                                // ALWAYS capture URL parts correctly
-                                                                const parts = withIndent.split(/(https?:\/\/\S+)/);
-                                                                const parsedLine = parts.map((part, i) => {
-                                                                    if (!part) return null;
-
-                                                                    const trimmed = part.trim();
-
-                                                                    // detect URL
-                                                                    if (urlRegex.test(trimmed)) {
-                                                                        let clean = trimmed.replace(/[")<>]+$/g, '');
-
-                                                                        // console.log('here', clean);
-
-                                                                        return (
-                                                                            <a key={i} href={clean} target="_blank"
-                                                                                rel="noopener noreferrer"
-                                                                                style={{ color: '#fff', textDecoration: 'underline', fontWeight: 'bold' }}
-                                                                            >
-                                                                                Click Here
-                                                                            </a>
-                                                                        );
-                                                                    }
-
-                                                                    // bold
-                                                                    if (trimmed.startsWith('**') && trimmed.endsWith('**')) {
-                                                                        return (
-                                                                            <Text as="span" fontWeight="bold" key={i}>
-                                                                                {trimmed.slice(2, -2)}
-                                                                            </Text>
-                                                                        );
-                                                                    }
-
-                                                                    // italic
-                                                                    if (trimmed.startsWith('*') && trimmed.endsWith('*')) {
-                                                                        return (
-                                                                            <Text as="span" fontStyle="italic" key={i}>
-                                                                                {trimmed.slice(1, -1)}
-                                                                            </Text>
-                                                                        );
-                                                                    }
-
-
-
-                                                                    return <Text as="span" key={i}>{part}</Text>;
-                                                                });
-
-                                                                return (
-                                                                    <Box key={idx} mt={idx !== 0 ? 3 : 0}>
-                                                                        {parsedLine}
-                                                                    </Box>
-                                                                );
-                                                            })}
-                                                    </Box>
-                                                </Box>
+                                                <Box>{renderFormattedMessage(chat.message)}</Box>
                                             )}
                                         </Box>
                                         {chat.sender === "bot" && <Flex gap={2} alignItems={'center'}>
