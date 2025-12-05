@@ -20,7 +20,7 @@ from langchain_community.document_loaders import (
     UnstructuredExcelLoader, 
     PyPDFLoader
 )
-from app import BASE_DIR
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 ####
 # ---------------- CONFIGURATION ---------------- #
 API_BASE_URL = "http://3.6.203.180:7501"
