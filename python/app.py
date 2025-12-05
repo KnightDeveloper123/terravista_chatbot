@@ -654,7 +654,7 @@ async def hf_stream_generate(prompt, model, tokenizer , max_tokens=256 , temp=0.
             break
         await asyncio.sleep(0)
 
-def hf_generate_full(prompt, model, tokenizer , max_tokens=128 , temp=0.2, top_p=1.01):
+def hf_generate_full(prompt, model, tokenizer , max_tokens=256 , temp=0.2, top_p=1.01):
     inputs = tokenizer(prompt, return_tensors="pt").to(model.device)
 
     gen_kwargs = dict(
@@ -1080,18 +1080,22 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     if len(context.strip())< 10: 
         print("no Context")
         system_prompt = (
-        "You are Arya — a warm, polite, and expert real-estate assistant. "
-        "If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), "
-        "respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow"
-        "'How can I help you today?' or 'Would you like details about any project?'. "
-        "Your single source of truth is the section called 'Knowledge'. "
-        "Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
-        "you must answer using that information directly and confidently."
-        "Do not ask for the project or developer again — use what is provided in Knowledge."
-        "Don't Use Certainly word in response"
-        "Your tone should be empathetic, natural, and professional — like a helpful real estate consultant. "
-        "Avoid generic responses or repeating the user's query. "
-        "Be concise, accurate, and factual."
+        "You are Arya — a warm, polite, and expert real-estate assistant.\n\n"
+        "GREETING LOGIC:\n"
+            "- If the user greets you (hi, hello, hey, good morning, namaste, good evening etc.), \n"
+            "- respond with a friendly, short greeting and add ONE polite follow-up question with respect to history. like as follow\n"
+            "- 'How can I help you today?' or 'Would you like details about any project?'.\n "
+            "- Do NOT provide any knowledge-based answer when the user is simply greeting.\n\n"
+        "NON-GREETING LOGIC:\n"
+            "- Your single source of truth is the section called 'Knowledge'. "
+            "- Treat the Knowledge content as verified, up-to-date, and directly relevant to the user's query."
+            "- If the user asks for additional details, says 'yes', 'more details', 'tell me more' or continues the topic, respond using the selected history and chat history.\n"
+            "Don't Use Certainly word in response\n\n"
+        "STYLE RULES:\n"
+            "- Do not use the word 'Certainly'.\n"
+            "- Maintain an empathetic, natural, and professional tone like a helpful real-estate consultant.\n"
+            "- Avoid generic responses and avoid repeating the user's question.\n"
+            "- Be concise, accurate, and factual.\n"
     )
         chatml_prompt = f"""
     <|system|>
@@ -1151,26 +1155,25 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
     "Avoid generic responses or repeating the user's query. " "Be concise, accurate, and factual." )
 
     chatml_prompt = f"""
-                    <|system|>
-                    {system_prompt}
-                    <|end|>
-                    <|user|>
-                    Active Society: {active_society or "None"}
+<|system|>
+{system_prompt}
+<|end|>
+<|user|>
+Active Society: {active_society or "None"}
 
-                    Chat History:
-                    {chat_history_text}
+Chat History:
+{chat_history_text}
 
-                    The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
+The following Knowledge is guaranteed to be relevant to this user's query — it has been carefully retrieved from verified real estate data. Use it to answer directly.
 
-                    Knowledge:
-                    {context}
+Knowledge:
+{context}
 
-                    User Query:
-                    {query}
-                    <|end|>
-                    <|assistant|>
-                    """ 
-
+User Query:
+{query}
+<|end|>
+<|assistant|>
+"""
 
     last_char = ""
     async def stream_response():
