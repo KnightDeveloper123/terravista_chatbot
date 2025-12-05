@@ -1,8 +1,8 @@
 
 
-from app import * 
+from app import fetch_chat_history
 
-
+##
 def get_response_if_context(vectorstore ,query , title_id , name):
     # Retrieve relevant context
     retriever =  vectorstore.as_retriever(search_type="similarity_score_threshold",

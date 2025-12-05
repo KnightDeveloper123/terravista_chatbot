@@ -30,7 +30,6 @@ import torch
 from meeting import * 
 from utils import is_brochure_request
 import asyncio  
-from context_gen import get_response_if_context
 from file_manage import get_synced_vectorstore 
 warnings.filterwarnings("ignore", category=FutureWarning)
 load_dotenv()
@@ -1016,6 +1015,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                     }) 
         
         if res: 
+            from context_gen import get_response_if_context
             chatml = get_response_if_context(vectorstore=vectorstore , title_id=title_id , name=res)
             final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
             return JSONResponse({ 
