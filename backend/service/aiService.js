@@ -35,7 +35,7 @@ async function getAiReply(titleId, userId, name, query) {
             return { error: "Sorry, I'm having trouble responding right now." }
         }
     } catch (error) {
-        console.log("AI Service Error:", error.message);
+        console.log("AI Service Error:", error);
         return { error: "Sorry, I'm having trouble responding right now." };
     }
 }
