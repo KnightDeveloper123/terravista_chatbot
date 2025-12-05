@@ -1,0 +1,6 @@
+[
+  {
+    "user": "1bhk",
+    "response": "\"1BHK sizes at Harmony Enclave\",\"The appeal of a well-designed 1BHK\u2014it speaks to independence and smart living, and I appreciate that practical approach. At Harmony Enclave, our 1BHK options range from 550-650 sq ft carpet area, with efficient layouts that include separate living area, compact bedroom with wardrobe space, functional kitchen, and utility balcony. Priced between \u20b948-58 lakhs, these homes feature energy-saving fixtures and community amenities access. What matters most in your compact home\u2014storage solutions, natural light, or community integration?\""
+  }
+]
