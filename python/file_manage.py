@@ -20,7 +20,7 @@ from langchain_community.document_loaders import (
     UnstructuredExcelLoader, 
     PyPDFLoader
 )
-
+####
 # ---------------- CONFIGURATION ---------------- #
 API_BASE_URL = "http://3.6.203.180:7501"
 GET_ALL_DOCS_URL = f"{API_BASE_URL}/documents/getAllDocuments"
