@@ -1017,7 +1017,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
         if res: 
             from context_gen import get_response_if_context
             chatml = get_response_if_context(vectorstore=vectorstore , query='' , title_id=title_id , name=res)
-            final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer)
+            final_answer = hf_generate_full(chatml, global_model, global_tokenizer)
             return JSONResponse({ 
                         "success": True,
                         "response": final_answer , 
