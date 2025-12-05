@@ -117,7 +117,7 @@ def download_file(filename: str) -> bool:
         url = f"{DOWNLOAD_DOC_URL}{encoded_name}"
 
         print("URL: ", url)
-        save_path = os.path.join(DOCUMENTS_DIR, filename)
+        save_path = os.path.join(BASE_DIR , DOCUMENTS_DIR, filename)
         print("save_path: ", save_path)
         print(f"⬇️ Downloading: {filename}...")
         response = requests.get(url, timeout=30)
@@ -148,7 +148,7 @@ def sync_local_storage_with_api() -> List[str]:
     local_files = os.listdir(DOCUMENTS_DIR)
     for f in local_files:
         if f not in api_files_set:
-            full_path = os.path.join(DOCUMENTS_DIR, f)
+            full_path = os.path.join(BASE_DIR,DOCUMENTS_DIR, f)
             if os.path.isfile(full_path):
                 print(f"🗑️ Deleting orphan document: {f} (Not in API)")
                 os.remove(full_path)
@@ -156,7 +156,7 @@ def sync_local_storage_with_api() -> List[str]:
     # --- PHASE 2: DOWNLOAD MISSING ---
     valid_paths = []
     for f_name in api_files:
-        full_path = os.path.join(DOCUMENTS_DIR, f_name)
+        full_path = os.path.join(BASE_DIR , DOCUMENTS_DIR, f_name)
         print("FULL PATH : ", full_path)
         # If file doesn't exist locally, download it
         if not os.path.exists(full_path):
@@ -182,12 +182,12 @@ def cleanup_orphaned_embeddings(valid_file_paths: List[str]):
             
             if base_key not in valid_keys:
                 print(f"🗑️ Removing orphaned embedding cache: {fname}")
-                os.remove(os.path.join(EMBEDDINGS_DIR, fname))
+                os.remove(os.path.join(BASE_DIR , EMBEDDINGS_DIR, fname))
 
 def load_or_create_embeddings(file_path: str, embedder) -> Tuple[Any, List[Document]]:
     base_name = get_file_key(file_path)
-    index_path = os.path.join(EMBEDDINGS_DIR, f"{base_name}_faiss.index")
-    docs_path = os.path.join(EMBEDDINGS_DIR, f"{base_name}_docs.npy")
+    index_path = os.path.join(BASE_DIR , EMBEDDINGS_DIR, f"{base_name}_faiss.index")
+    docs_path = os.path.join(BASE_DIR , EMBEDDINGS_DIR, f"{base_name}_docs.npy")
 
     # A. Try Load
     if os.path.exists(index_path) and os.path.exists(docs_path):
