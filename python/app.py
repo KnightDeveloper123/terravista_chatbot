@@ -133,10 +133,10 @@ def load_documents(file_path: str = DATA_FILE):
 # |========================================| 
 print("Before enter to  create embedding model..................")
 def create_embeddings(): 
-    model_path=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2")
+    model_path=os.path.join(BASE_DIR , "models" , "bge-small-en-v1.5")
     print("embedding model Path: " , model_path )
     return HuggingFaceEmbeddings(
-        model_name=os.path.join(BASE_DIR , "models" , "all-MiniLM-L6-v2"), 
+        model_name=os.path.join(BASE_DIR , "models" , "bge-small-en-v1.5"), 
         model_kwargs={
             "device": "cpu",
             "local_files_only": False   # ← THIS FIXES SERVER ISSUE
@@ -764,7 +764,8 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     title_id = (body or {}).get("title_id")
     query = (body or {}).get("query")
     user_id = (body or {}).get("user_id")
-    name = (body or {}).get("name")  
+    name = (body or {}).get("name") 
+    name= "rohit" 
 
     print("the name key is : " , name)
     if title_id and title_id != LAST_TITLE_ID:
@@ -888,8 +889,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                             "response": reply , 
                             "type": 'text'
                         }) 
-                        
-        
+             
         last_char = ""  
         def cleaner(text):
             return re.sub(r'(?<=[A-Za-z])(?=\d)|(?<=\d)(?=[A-Za-z])', ' ', text) 
@@ -1015,12 +1015,12 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
                     }) 
         
         if res: 
-            from context_gen import get_response_if_context
-            chatml = get_response_if_context(vectorstore=vectorstore , query='' , title_id=title_id , name=res)
-            final_answer = hf_generate_full(chatml, global_model, global_tokenizer)
+            # from context_gen import get_response_if_context
+            # chatml = get_response_if_context(vectorstore=vectorstore , query='' , title_id=title_id , name=res)
+            # final_answer = hf_generate_full(chatml, global_model, global_tokenizer)
             return JSONResponse({ 
                         "success": True,
-                        "response": final_answer , 
+                        "response": f"Hello {res} tell me how i can assist you with real-estate queries".capitalize() , 
                         "type": 'text',
                         "name": res
                         })
@@ -1276,7 +1276,7 @@ async def ask_chat(request: Request ,  body: dict = Body(None)):
         if 'null' in res: 
             return PlainTextResponse("Please provide the name else we can move further.") 
         SESSION_STATE[session_id]["user_name"] = res  
-        return PlainTextResponse(f"Hi {res} Thanks for your name." )
+        return PlainTextResponse(f"Hello {res} tell me how i can assist you with real-estate queries".capitalize() )
 
 
 if __name__ == "__main__":

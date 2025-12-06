@@ -7,10 +7,10 @@ load_dotenv()
 from sentence_transformers import SentenceTransformer
 HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN') 
 
-save_path = "/root/github/python_model/all-MiniLM-L6-v2"
-
+# save_path = "/root/github/python_model/all-MiniLM-L6-v2"
+save_path = "models/bge-small-en-v1.5"
 embedding_model = SentenceTransformer(
-    "sentence-transformers/all-MiniLM-L6-v2",
+    "BAAI/bge-small-en-v1.5",
     cache_folder=save_path
 )
 
