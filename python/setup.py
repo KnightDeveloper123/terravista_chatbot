@@ -7,8 +7,8 @@ load_dotenv()
 from sentence_transformers import SentenceTransformer
 HUGGINGFACE_TOKEN = os.getenv('HUGGINGFACE_TOKEN') 
 
-save_path = "/root/github/python_model/bge-small-en-v1.5"
-# save_path = "models/bge-small-en-v1.5"
+# save_path = "/root/github/python_model/bge-small-en-v1.5"
+save_path = "models/bge-small-en-v1.5"
 embedding_model = SentenceTransformer(
     "BAAI/bge-small-en-v1.5",
     cache_folder=save_path
