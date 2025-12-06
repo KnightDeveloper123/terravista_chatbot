@@ -765,7 +765,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     query = (body or {}).get("query")
     user_id = (body or {}).get("user_id")
     name = (body or {}).get("name") 
-    name= "rohit" 
+    # name= "rohit" 
 
     print("the name key is : " , name)
     if title_id and title_id != LAST_TITLE_ID:
