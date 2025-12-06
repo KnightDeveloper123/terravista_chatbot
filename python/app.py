@@ -252,7 +252,7 @@ def find_brochure_file():
 
 def detect_special_intent(query: str):
     q = query.lower().strip()
-    if re.search(r"\b(brochure|brouchure|catalog|pdf|info sheet)\b", q):
+    if re.search(r"\b(brochure|brouchure|catalog|pdf|)\b", q):
         path = find_brochure_file()
         return {"type": "brochure", "content": path}
     meeting_text = "Call to Mr. akash on +91 8208333212 and Schedule a meeting.."
@@ -591,7 +591,9 @@ def create_llm():
         device_map="auto",
         torch_dtype=torch.float16,   # GPTQ should ALWAYS use fp16
         low_cpu_mem_usage=True , 
-        local_files_only=True
+        local_files_only=True , 
+        use_safetensors=True,
+        trust_remote_code=True
     )
 
     return tokenizer, model 
@@ -687,7 +689,6 @@ print("Before call create embedding ..................")
 embeddings = create_embeddings()
 print("after call create embedding ..................")
 rerank = create_reranker(embeddings, top_k=5)
-prompt = create_prompt()  
 
 # from llama_cpp  import Llama
 # def Llama_model(prompt): 
@@ -765,7 +766,7 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
     query = (body or {}).get("query")
     user_id = (body or {}).get("user_id")
     name = (body or {}).get("name") 
-    # name= "rohit" 
+    name= "rohit" 
 
     print("the name key is : " , name)
     if title_id and title_id != LAST_TITLE_ID:
@@ -844,9 +845,9 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
             full_history = ""
         local_context = load_context_file()
         combined_history = (full_history or []) + local_context
-        print("Local Context: " , local_context) 
+        # print("Local Context: " , local_context) 
         print("🎈🎈🎈"*10)
-        print("Combined_history: " , combined_history) 
+        # print("Combined_history: " , combined_history) 
         print("🎀"*30)
         selected_hist = select_relevant_history(
             query,
@@ -992,7 +993,8 @@ async def ask_chat_info(request: Request ,  body: dict = Body(None)):
         final_answer = hf_generate_full(chatml_prompt, global_model, global_tokenizer) 
         # final_answer = generate_hf_response(chatml_prompt)  
         print("If context is we got  ----------------------------- ")
-        print("Chatml prompt: " , chatml_prompt )
+        # print("Chatml prompt: " , chatml_prompt ) 
+        print(f"total length of prompt: {len(chatml_prompt.split())}")
         # final_answer = Llama_model(chatml_prompt)
         print(final_answer)
         return JSONResponse({ 
